@@ -2,13 +2,23 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <omnetpp.h>
-#include <vector>
+#include <set>
 
 #include "msgtype_m.h"
 
 class QueueEntry{
 public:
-    Message& msg;
-    std::vector<int> acks;
-    QueueEntry(Message &msg):msg(msg),acks(){ }
+    int l_id;
+    int l_clock;
+    Message *msg;
+    std::set<int> acks;
+
+    QueueEntry():acks(){ }
+
+    void setMsg(Message *imsg){
+       msg = imsg;
+       l_id = msg->getL_id();
+       l_clock = msg->getL_clock();
+       acks.insert(l_id);
+    }
 };

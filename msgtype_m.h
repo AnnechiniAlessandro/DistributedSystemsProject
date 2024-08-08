@@ -18,7 +18,7 @@
 
 class Message;
 /**
- * Class generated from <tt>msgtype.msg:25</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:9</tt> by opp_msgtool.
  * <pre>
  * message Message
  * {
