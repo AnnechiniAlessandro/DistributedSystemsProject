@@ -38,6 +38,7 @@ class Node : public cSimpleModule
     int last_committed_id;
     int last_commited_l_clock;
 
+    int hb_next_id;
     int hb_channel;
 
     std::vector<QueueEntry> queue;
@@ -65,7 +66,7 @@ void Node::initialize(){
     last_committed_id = -1;
     last_commited_l_clock = -1;
 
-    num_nodes = 0;
+    num_nodes = 1;
     for(int i=0; i< gateSize("out"); i++){
         if(i!=id){
             view.push_back(i);
@@ -73,7 +74,8 @@ void Node::initialize(){
         num_nodes++;
     }
 
-    hb_channel = (id+1)%num_nodes;
+    hb_next_id = (id+1)%num_nodes;
+    hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
 
     Message *hb_msg = new Message();
     hb_msg->setMex_type(2);
