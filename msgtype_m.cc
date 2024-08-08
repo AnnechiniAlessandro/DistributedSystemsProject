@@ -176,6 +176,7 @@ Message& Message::operator=(const Message& other)
 void Message::copy(const Message& other)
 {
     this->sender_id = other.sender_id;
+    this->l_id = other.l_id;
     this->l_clock = other.l_clock;
     this->text = other.text;
     this->mex_type = other.mex_type;
@@ -185,6 +186,7 @@ void Message::parsimPack(omnetpp::cCommBuffer *b) const
 {
     ::omnetpp::cMessage::parsimPack(b);
     doParsimPacking(b,this->sender_id);
+    doParsimPacking(b,this->l_id);
     doParsimPacking(b,this->l_clock);
     doParsimPacking(b,this->text);
     doParsimPacking(b,this->mex_type);
@@ -194,6 +196,7 @@ void Message::parsimUnpack(omnetpp::cCommBuffer *b)
 {
     ::omnetpp::cMessage::parsimUnpack(b);
     doParsimUnpacking(b,this->sender_id);
+    doParsimUnpacking(b,this->l_id);
     doParsimUnpacking(b,this->l_clock);
     doParsimUnpacking(b,this->text);
     doParsimUnpacking(b,this->mex_type);
@@ -207,6 +210,16 @@ int Message::getSender_id() const
 void Message::setSender_id(int sender_id)
 {
     this->sender_id = sender_id;
+}
+
+int Message::getL_id() const
+{
+    return this->l_id;
+}
+
+void Message::setL_id(int l_id)
+{
+    this->l_id = l_id;
 }
 
 int Message::getL_clock() const
@@ -245,6 +258,7 @@ class MessageDescriptor : public omnetpp::cClassDescriptor
     mutable const char **propertyNames;
     enum FieldConstants {
         FIELD_sender_id,
+        FIELD_l_id,
         FIELD_l_clock,
         FIELD_text,
         FIELD_mex_type,
@@ -314,7 +328,7 @@ const char *MessageDescriptor::getProperty(const char *propertyName) const
 int MessageDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
-    return base ? 4+base->getFieldCount() : 4;
+    return base ? 5+base->getFieldCount() : 5;
 }
 
 unsigned int MessageDescriptor::getFieldTypeFlags(int field) const
@@ -327,11 +341,12 @@ unsigned int MessageDescriptor::getFieldTypeFlags(int field) const
     }
     static unsigned int fieldTypeFlags[] = {
         FD_ISEDITABLE,    // FIELD_sender_id
+        FD_ISEDITABLE,    // FIELD_l_id
         FD_ISEDITABLE,    // FIELD_l_clock
         FD_ISEDITABLE,    // FIELD_text
         FD_ISEDITABLE,    // FIELD_mex_type
     };
-    return (field >= 0 && field < 4) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 5) ? fieldTypeFlags[field] : 0;
 }
 
 const char *MessageDescriptor::getFieldName(int field) const
@@ -344,11 +359,12 @@ const char *MessageDescriptor::getFieldName(int field) const
     }
     static const char *fieldNames[] = {
         "sender_id",
+        "l_id",
         "l_clock",
         "text",
         "mex_type",
     };
-    return (field >= 0 && field < 4) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 5) ? fieldNames[field] : nullptr;
 }
 
 int MessageDescriptor::findField(const char *fieldName) const
@@ -356,9 +372,10 @@ int MessageDescriptor::findField(const char *fieldName) const
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     int baseIndex = base ? base->getFieldCount() : 0;
     if (strcmp(fieldName, "sender_id") == 0) return baseIndex + 0;
-    if (strcmp(fieldName, "l_clock") == 0) return baseIndex + 1;
-    if (strcmp(fieldName, "text") == 0) return baseIndex + 2;
-    if (strcmp(fieldName, "mex_type") == 0) return baseIndex + 3;
+    if (strcmp(fieldName, "l_id") == 0) return baseIndex + 1;
+    if (strcmp(fieldName, "l_clock") == 0) return baseIndex + 2;
+    if (strcmp(fieldName, "text") == 0) return baseIndex + 3;
+    if (strcmp(fieldName, "mex_type") == 0) return baseIndex + 4;
     return base ? base->findField(fieldName) : -1;
 }
 
@@ -372,11 +389,12 @@ const char *MessageDescriptor::getFieldTypeString(int field) const
     }
     static const char *fieldTypeStrings[] = {
         "int",    // FIELD_sender_id
+        "int",    // FIELD_l_id
         "int",    // FIELD_l_clock
         "string",    // FIELD_text
         "int",    // FIELD_mex_type
     };
-    return (field >= 0 && field < 4) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 5) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **MessageDescriptor::getFieldPropertyNames(int field) const
@@ -460,6 +478,7 @@ std::string MessageDescriptor::getFieldValueAsString(omnetpp::any_ptr object, in
     Message *pp = omnetpp::fromAnyPtr<Message>(object); (void)pp;
     switch (field) {
         case FIELD_sender_id: return long2string(pp->getSender_id());
+        case FIELD_l_id: return long2string(pp->getL_id());
         case FIELD_l_clock: return long2string(pp->getL_clock());
         case FIELD_text: return oppstring2string(pp->getText());
         case FIELD_mex_type: return long2string(pp->getMex_type());
@@ -480,6 +499,7 @@ void MessageDescriptor::setFieldValueAsString(omnetpp::any_ptr object, int field
     Message *pp = omnetpp::fromAnyPtr<Message>(object); (void)pp;
     switch (field) {
         case FIELD_sender_id: pp->setSender_id(string2long(value)); break;
+        case FIELD_l_id: pp->setL_id(string2long(value)); break;
         case FIELD_l_clock: pp->setL_clock(string2long(value)); break;
         case FIELD_text: pp->setText((value)); break;
         case FIELD_mex_type: pp->setMex_type(string2long(value)); break;
@@ -498,6 +518,7 @@ omnetpp::cValue MessageDescriptor::getFieldValue(omnetpp::any_ptr object, int fi
     Message *pp = omnetpp::fromAnyPtr<Message>(object); (void)pp;
     switch (field) {
         case FIELD_sender_id: return pp->getSender_id();
+        case FIELD_l_id: return pp->getL_id();
         case FIELD_l_clock: return pp->getL_clock();
         case FIELD_text: return pp->getText();
         case FIELD_mex_type: return pp->getMex_type();
@@ -518,6 +539,7 @@ void MessageDescriptor::setFieldValue(omnetpp::any_ptr object, int field, int i,
     Message *pp = omnetpp::fromAnyPtr<Message>(object); (void)pp;
     switch (field) {
         case FIELD_sender_id: pp->setSender_id(omnetpp::checked_int_cast<int>(value.intValue())); break;
+        case FIELD_l_id: pp->setL_id(omnetpp::checked_int_cast<int>(value.intValue())); break;
         case FIELD_l_clock: pp->setL_clock(omnetpp::checked_int_cast<int>(value.intValue())); break;
         case FIELD_text: pp->setText(value.stringValue()); break;
         case FIELD_mex_type: pp->setMex_type(omnetpp::checked_int_cast<int>(value.intValue())); break;

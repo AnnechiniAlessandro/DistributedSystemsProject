@@ -23,6 +23,7 @@ class Message;
  * message Message
  * {
  *     int sender_id;
+ *     int l_id;
  *     int l_clock;
  *     string text;
  *     int mex_type;
@@ -33,6 +34,7 @@ class Message : public ::omnetpp::cMessage
 {
   protected:
     int sender_id = 0;
+    int l_id = 0;
     int l_clock = 0;
     omnetpp::opp_string text;
     int mex_type = 0;
@@ -54,6 +56,9 @@ class Message : public ::omnetpp::cMessage
 
     virtual int getSender_id() const;
     virtual void setSender_id(int sender_id);
+
+    virtual int getL_id() const;
+    virtual void setL_id(int l_id);
 
     virtual int getL_clock() const;
     virtual void setL_clock(int l_clock);
