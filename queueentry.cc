@@ -23,4 +23,11 @@ public:
        l_clock = msg->getL_clock();
        acks.insert(l_id);
     }
+
+    void remove(){
+        l_id = -1;
+        l_clock = -1;
+        msg = null;
+        acks.clear();
+    }
 };

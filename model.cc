@@ -35,7 +35,9 @@ int id_to_channel(int oth_id, int my_id){
 int channel_to_id(int channel, int my_id){
     return channel >= my_id ? channel+1 : channel;
 }
-
+void fault_detected(){
+    // TODO
+}
 
 class Node : public cSimpleModule
 {
@@ -50,6 +52,7 @@ class Node : public cSimpleModule
     int hb_channel;
 
     std::vector<QueueEntry> queue;
+    QueueEntry heart_beat;
 
     //Nodes in the group view
     std::set<int> view;
@@ -101,6 +104,31 @@ void Node::send_standard_message(const char *text){
     std::push_heap(queue.begin(),queue.end(),is_after_qe);
 }
 
+void Node::send_hb(){
+
+    // Any time we send and HB we check if the previous one has been acked
+    if(heart_beat.l_id != -1){
+        fault_detected();
+        return;
+    }
+
+    // id of the following node
+    int elem = (id + 1) % (int)view.size();
+
+    // create the HB message
+    Message *msg = new Message();
+    msg->setL_clock(l_clock);
+    msg->setL_id(elem);
+    msg->setMex_type(MEXTYPE_HB);
+    msg->setSender_id(id);
+    msg->setText("");
+
+    send(msg,"out",id_to_channel(elem,id));
+
+    // save the last HB sent
+    heart_beat.setMsg(msg);
+}
+
 void Node::initialize(){
     id = par("id");
     l_clock = 0;
@@ -129,7 +157,6 @@ void Node::initialize(){
         send_standard_message("MESSAGE");
     }
 }
-
 
 void Node::checkTopMessage(){
     bool is_valid;
@@ -200,6 +227,12 @@ void Node::handleAckMessage(Message *m){
 
     l_clock++;
 
+    // Remove the HB message
+    if(heart_beat.l_id == m->getL_id() && heart_beat.l_clock == m->getL_clock()){
+        heart_beat.clear();
+        return;
+    }
+
     //Check if an ACK has already arrived
     QueueEntry *qe = nullptr;
     for(int i=0; i<(int)queue.size(); i++){
@@ -247,6 +280,23 @@ void Node::handleAckMessage(Message *m){
     return;
 }
 
+void Node::handleHBMessage(Message *m){
+    l_clock++;
+
+    Message *ack = new Message();
+    ack->setL_clock(m->getL_clock());
+    ack->setL_id(m->getL_id());
+    ack->setMex_type(MEXTYPE_ACK);
+    ack->setSender_id(id);
+    ack->setText("ACK");
+
+    //respond to the HB
+    send(ack,"out",id_to_channel(m->getSender_id(),id));
+
+    return;
+
+}
+
 void Node::handleMessage(cMessage *t_msg){
     Message *m = (Message*) t_msg;
 
@@ -265,6 +315,94 @@ void Node::handleMessage(cMessage *t_msg){
         handleAckMessage(m);
         return;
     }
+    if(m->getMex_type() == MEXTYPE_HB){
+        handleHBMessage(m);
+        return;
+    }
+}
+
+void Node::mergeQueues(const std::vector<std::vector<QueueEntry>>& otherQueues){
+    std::vector<QueueEntry> mergedQueue;
+
+    // min-heap: vector of pairs <QueueEntry, index of the queue it came from>
+    std::vector<std::pair<QueueEntry, int>> minHeap;
+
+    // Initialize the heap with the first element of each queue
+    if (!queue.empty()) {
+        minHeap.push_back(std::make_pair(queue.front(), 0));
+    }
+    for (int i = 0; i < otherQueues.size(); i++) {
+        if (!otherQueues[i].empty()) {
+            minHeap.push_back(std::make_pair(otherQueues[i].front(), i + 1));
+        }
+    }
+
+    // Turn the vector into a heap
+    std::make_heap(minHeap.begin(), minHeap.end(), [](const std::pair<QueueEntry, int>& lhs, const std::pair<QueueEntry, int>& rhs) {
+        return is_after_qe(lhs.first, rhs.first);
+    });
+
+    // Create and initialize iterators to track the position in each queue
+    std::vector<int> indices(otherQueues.size() + 1, 0);
+
+    while (!minHeap.empty()) {
+        // Extract the smallest element from the heap
+        std::pop_heap(minHeap.begin(), minHeap.end(), [](const std::pair<QueueEntry, int>& lhs, const std::pair<QueueEntry, int>& rhs) {
+            return is_after_qe(lhs.first, rhs.first);
+        });
+        std::pair<QueueEntry, int> topElement = minHeap.back();
+        minHeap.pop_back();
+
+        QueueEntry smallestEntry = topElement.first;
+        int queueIdx = topElement.second;
+
+        // Add the smallest entry to the merged queue
+        mergedQueue.push_back(smallestEntry);
+
+        // Advance the iterator for the queue from which the element was taken
+        if (queueIdx == 0) { // localQueue
+            if (++indices[0] < queue.size()) {
+                minHeap.push_back(std::make_pair(queue[indices[0]], 0));
+                std::push_heap(minHeap.begin(), minHeap.end(), [](const std::pair<QueueEntry, int>& lhs, const std::pair<QueueEntry, int>& rhs) {
+                    return is_after_qe(lhs.first, rhs.first);
+                });
+            }
+        } else { // otherQueues
+            int otherQueueIdx = queueIdx - 1;
+            if (++indices[queueIdx] < otherQueues[otherQueueIdx].size()) {
+                minHeap.push_back(std::make_pair(otherQueues[otherQueueIdx][indices[queueIdx]], queueIdx));
+                std::push_heap(minHeap.begin(), minHeap.end(), [](const std::pair<QueueEntry, int>& lhs, const std::pair<QueueEntry, int>& rhs) {
+                    return is_after_qe(lhs.first, rhs.first);
+                });
+            }
+        }
+    }
+
+    // Replace the local queue with the merged queue
+    queue = std::move(mergedQueue);
+
+    // Merge acks of duplicated messages in the sorted queue
+    std::vector<QueueEntry>::iterator it = queue.begin();
+    while (it != queue.end()) {
+        // Find the range of duplicates
+        std::pair<std::vector<QueueEntry>::iterator, std::vector<QueueEntry>::iterator> range = std::equal_range(
+            it + 1, queue.end(), *it, [](const QueueEntry& qe1, const QueueEntry& qe2) {
+                return qe1.l_clock == qe2.l_clock && qe1.l_id == qe2.l_id;
+            }
+        );
+
+        if (range.first != range.second) {
+            // Merge the acks
+            for (std::vector<QueueEntry>::iterator mergeIt = range.first; mergeIt != range.second; mergeIt++) {
+                it->acks.insert(mergeIt->acks.begin(), mergeIt->acks.end());
+            }
+            queue.erase(range.first, range.second);
+        }
+        it++;
+    }
+
+    // Remove committed messages - TODO - We need to see how to handle it
+
 }
 
 void Node::finish(){
