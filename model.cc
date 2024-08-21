@@ -64,9 +64,12 @@ class Node : public cSimpleModule
     virtual void initialize() override;
     virtual void send_standard_message(const char *text);
     virtual void checkTopMessage();
+    virtual void send_hb();
     virtual void handleStdMessage(Message *m);
     virtual void handleAckMessage(Message *m);
+    virtual void handleHBMessage(Message *m);
     virtual void handleMessage(cMessage *msg) override;
+    virtual void mergeQueues(const std::vector<std::vector<QueueEntry>>& otherQueues);
     virtual void finish() override;
 
   public:
