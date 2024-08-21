@@ -68,7 +68,7 @@ class Node : public cSimpleModule
     virtual void handleHBMessage(Message *m);
     virtual void handleHBAckMessage(Message *m);
     virtual void handleMessage(cMessage *msg) override;
-    //virtual void mergeQueues(std::vector<QueueEntry> otherQueue);
+    virtual void mergeQueues(std::vector<QueueEntry> otherQueue);
     virtual void fault_detected();
     virtual void finish() override;
 
@@ -344,91 +344,49 @@ void Node::handleMessage(cMessage *t_msg){
     }
 }
 
-/*
-void Node::mergeQueues(const std::vector<std::vector<QueueEntry>> otherQueues){
+void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
+
     std::vector<QueueEntry> mergedQueue;
+    int i = 0; //iterator for queue
+    int j = 0; //iterator for otherQueue
+    int lenQ = queue.size();
+    int lenOQ = otherQueue.size();
 
-    // min-heap: vector of pairs <QueueEntry, index of the queue it came from>
-    std::vector<std::pair<QueueEntry, int>> minHeap;
-
-    // Initialize the heap with the first element of each queue
-    if (!queue.empty()) {
-        minHeap.push_back(std::make_pair(queue.front(), 0));
-    }
-    for (int i = 0; i < otherQueues.size(); i++) {
-        if (!otherQueues[i].empty()) {
-            minHeap.push_back(std::make_pair(otherQueues[i].front(), i + 1));
+    while(i < lenQ && j < lenOQ){
+        if(is_after_qe(otherQueue[j], queue[i])){ // local queue has oldest message
+            mergedQueue.push_back(queue[i]);
+            i++;
+        }else if(is_after_qe(queue[i], otherQueue[j])){ // received queue has oldest message
+            mergedQueue.push_back(otherQueue[j]);
+            j++;
+        }else if(queue[i].l_clock == otherQueue[j].l_clock && queue[i].l_id == otherQueue[j].l_id){ // is the same message -> merge ack
+            queue[i].acks.insert(otherQueue[j].acks.begin(), otherQueue[j].acks.end());
+            mergedQueue.push_back(queue[i]);
+            i++;
+            j++;
         }
     }
 
-    // Turn the vector into a heap
-    std::make_heap(minHeap.begin(), minHeap.end(), [](const std::pair<QueueEntry, int>& lhs, const std::pair<QueueEntry, int>& rhs) {
-        return is_after_qe(lhs.first, rhs.first);
-    });
+    // Add any remaining entries from the local queue
+    while (i < lenQ) {
+        mergedQueue.push_back(queue[i]);
+        i++;
+    }
 
-    // Create and initialize iterators to track the position in each queue
-    std::vector<int> indices(otherQueues.size() + 1, 0);
-
-    while (!minHeap.empty()) {
-        // Extract the smallest element from the heap
-        std::pop_heap(minHeap.begin(), minHeap.end(), [](const std::pair<QueueEntry, int>& lhs, const std::pair<QueueEntry, int>& rhs) {
-            return is_after_qe(lhs.first, rhs.first);
-        });
-        std::pair<QueueEntry, int> topElement = minHeap.back();
-        minHeap.pop_back();
-
-        QueueEntry smallestEntry = topElement.first;
-        int queueIdx = topElement.second;
-
-        // Add the smallest entry to the merged queue
-        mergedQueue.push_back(smallestEntry);
-
-        // Advance the iterator for the queue from which the element was taken
-        if (queueIdx == 0) { // localQueue
-            if (++indices[0] < queue.size()) {
-                minHeap.push_back(std::make_pair(queue[indices[0]], 0));
-                std::push_heap(minHeap.begin(), minHeap.end(), [](const std::pair<QueueEntry, int>& lhs, const std::pair<QueueEntry, int>& rhs) {
-                    return is_after_qe(lhs.first, rhs.first);
-                });
-            }
-        } else { // otherQueues
-            int otherQueueIdx = queueIdx - 1;
-            if (++indices[queueIdx] < otherQueues[otherQueueIdx].size()) {
-                minHeap.push_back(std::make_pair(otherQueues[otherQueueIdx][indices[queueIdx]], queueIdx));
-                std::push_heap(minHeap.begin(), minHeap.end(), [](const std::pair<QueueEntry, int>& lhs, const std::pair<QueueEntry, int>& rhs) {
-                    return is_after_qe(lhs.first, rhs.first);
-                });
-            }
-        }
+    // Add any remaining entries from the received queue
+    while (j < lenOQ) {
+        mergedQueue.push_back(otherQueue[j]);
+        j++;
     }
 
     // Replace the local queue with the merged queue
     queue = std::move(mergedQueue);
 
-    // Merge acks of duplicated messages in the sorted queue
-    std::vector<QueueEntry>::iterator it = queue.begin();
-    while (it != queue.end()) {
-        // Find the range of duplicates
-        std::pair<std::vector<QueueEntry>::iterator, std::vector<QueueEntry>::iterator> range = std::equal_range(
-            it + 1, queue.end(), *it, [](const QueueEntry& qe1, const QueueEntry& qe2) {
-                return qe1.l_clock == qe2.l_clock && qe1.l_id == qe2.l_id;
-            }
-        );
+    checkTopMessage();
 
-        if (range.first != range.second) {
-            // Merge the acks
-            for (std::vector<QueueEntry>::iterator mergeIt = range.first; mergeIt != range.second; mergeIt++) {
-                it->acks.insert(mergeIt->acks.begin(), mergeIt->acks.end());
-            }
-            queue.erase(range.first, range.second);
-        }
-        it++;
-    }
-
-    // Remove committed messages - TODO - We need to see how to handle it
+    return;
 
 }
-*/
 
 void Node::finish(){
     //TODO
