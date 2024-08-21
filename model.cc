@@ -44,7 +44,7 @@ class Node : public cSimpleModule
     int l_clock;
 
     int last_committed_id;
-    int last_commited_l_clock;
+    int last_committed_l_clock;
 
     int hb_next_id;
     int hb_channel;
@@ -83,7 +83,7 @@ void Node::initialize(){
     l_clock = 0;
 
     last_committed_id = -1;
-    last_commited_l_clock = -1;
+    last_committed_l_clock = -1;
 
     num_nodes = 0;
     for(int i=0; i< gateSize("out")+1; i++){
@@ -181,7 +181,7 @@ void Node::checkTopMessage(){
             sprintf(bub,"COMMITTED: %d - %d : %s",queue[0].l_id,queue[0].l_clock,queue[0].msg->getText());
             bubble(bub);
             last_committed_id = queue[0].l_id;
-            last_commited_l_clock = queue[0].l_clock;
+            last_committed_l_clock = queue[0].l_clock;
             committed_msgs.push_back(queue[0].msg);
             std::pop_heap(queue.begin(),queue.end(),is_after_qe);
             queue.pop_back();
@@ -352,6 +352,12 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
     int lenQ = queue.size();
     int lenOQ = otherQueue.size();
 
+    // skip messages already committed locally
+    while(is_after_id(last_committed_l_clock, last_committed_id, otherQueue[j].l_clock, otherQueue[j].l_id)){
+        j++;
+    }
+
+    // actual merge
     while(i < lenQ && j < lenOQ){
         if(is_after_qe(otherQueue[j], queue[i])){ // local queue has oldest message
             mergedQueue.push_back(queue[i]);
