@@ -16,6 +16,7 @@
 #define MEXTYPE_ACK 1
 #define MEXTYPE_SELFHB 2
 #define MEXTYPE_HB 3
+#define MEXTYPE_HB_ACK 4
 //...
 
 using namespace omnetpp;
@@ -35,9 +36,6 @@ int id_to_channel(int oth_id, int my_id){
 int channel_to_id(int channel, int my_id){
     return channel >= my_id ? channel+1 : channel;
 }
-void fault_detected(){
-    // TODO
-}
 
 class Node : public cSimpleModule
 {
@@ -52,7 +50,7 @@ class Node : public cSimpleModule
     int hb_channel;
 
     std::vector<QueueEntry> queue;
-    QueueEntry heart_beat;
+    bool still_alive_neighbour;
 
     //Nodes in the group view
     std::set<int> view;
@@ -64,12 +62,14 @@ class Node : public cSimpleModule
     virtual void initialize() override;
     virtual void send_standard_message(const char *text);
     virtual void checkTopMessage();
-    virtual void send_hb();
+    virtual void send_hb(Message *hb_msg);
     virtual void handleStdMessage(Message *m);
     virtual void handleAckMessage(Message *m);
     virtual void handleHBMessage(Message *m);
+    virtual void handleHBAckMessage(Message *m);
     virtual void handleMessage(cMessage *msg) override;
-    virtual void mergeQueues(const std::vector<std::vector<QueueEntry>>& otherQueues);
+    //virtual void mergeQueues(std::vector<QueueEntry> otherQueue);
+    virtual void fault_detected();
     virtual void finish() override;
 
   public:
@@ -77,6 +77,37 @@ class Node : public cSimpleModule
 };
 
 Define_Module(Node);
+
+void Node::initialize(){
+    id = par("id");
+    l_clock = 0;
+
+    last_committed_id = -1;
+    last_commited_l_clock = -1;
+
+    num_nodes = 0;
+    for(int i=0; i< gateSize("out")+1; i++){
+        if(i!=id){
+            view.insert(i);
+        }
+        num_nodes++;
+    }
+
+    hb_next_id = (id+1)%num_nodes;
+    hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
+
+    //Schedule the event of sending the first HB
+    Message *hb_msg = new Message();
+    hb_msg->setMex_type(MEXTYPE_SELFHB);
+    scheduleAt(simTime()+ HEARTBEAT_PERIOD,hb_msg);
+
+    if(id==0){
+        l_clock++;
+        send_standard_message("MESSAGE");
+    }
+
+    still_alive_neighbour = true;
+}
 
 void Node::send_standard_message(const char *text){
 
@@ -107,16 +138,24 @@ void Node::send_standard_message(const char *text){
     std::push_heap(queue.begin(),queue.end(),is_after_qe);
 }
 
-void Node::send_hb(){
+void Node::fault_detected(){
+    bubble("FAULT!");
+    still_alive_neighbour = true;
+    return;
+}
+
+void Node::send_hb(Message *hb_msg){
+
+    scheduleAt(simTime()+ HEARTBEAT_PERIOD,hb_msg);
 
     // Any time we send and HB we check if the previous one has been acked
-    if(heart_beat.l_id != -1){
+    if(!still_alive_neighbour){
         fault_detected();
         return;
     }
 
     // id of the following node
-    int elem = (id + 1) % (int)view.size();
+    int elem = hb_next_id;
 
     // create the HB message
     Message *msg = new Message();
@@ -124,41 +163,12 @@ void Node::send_hb(){
     msg->setL_id(elem);
     msg->setMex_type(MEXTYPE_HB);
     msg->setSender_id(id);
-    msg->setText("");
+    msg->setText("HEARTBEAT");
 
-    send(msg,"out",id_to_channel(elem,id));
+    send(msg,"out",hb_channel);
 
-    // save the last HB sent
-    heart_beat.setMsg(msg);
-}
-
-void Node::initialize(){
-    id = par("id");
-    l_clock = 0;
-
-    last_committed_id = -1;
-    last_commited_l_clock = -1;
-
-    num_nodes = 0;
-    for(int i=0; i< gateSize("out")+1; i++){
-        if(i!=id){
-            view.insert(i);
-        }
-        num_nodes++;
-    }
-
-    hb_next_id = (id+1)%num_nodes;
-    hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
-
-    //Schedule the event of sending the first HB
-    Message *hb_msg = new Message();
-    hb_msg->setMex_type(2);
-    scheduleAt(HEARTBEAT_PERIOD,hb_msg);
-
-    if(id==0){
-        l_clock++;
-        send_standard_message("MESSAGE");
-    }
+    // set still alive to false
+    still_alive_neighbour = false;
 }
 
 void Node::checkTopMessage(){
@@ -230,12 +240,6 @@ void Node::handleAckMessage(Message *m){
 
     l_clock++;
 
-    // Remove the HB message
-    if(heart_beat.l_id == m->getL_id() && heart_beat.l_clock == m->getL_clock()){
-        heart_beat.clear();
-        return;
-    }
-
     //Check if an ACK has already arrived
     QueueEntry *qe = nullptr;
     for(int i=0; i<(int)queue.size(); i++){
@@ -283,19 +287,26 @@ void Node::handleAckMessage(Message *m){
     return;
 }
 
+void Node::handleHBAckMessage(Message *m){
+    still_alive_neighbour = true;
+    delete m;
+    return;
+}
+
 void Node::handleHBMessage(Message *m){
     l_clock++;
 
     Message *ack = new Message();
     ack->setL_clock(m->getL_clock());
     ack->setL_id(m->getL_id());
-    ack->setMex_type(MEXTYPE_ACK);
+    ack->setMex_type(MEXTYPE_HB_ACK);
     ack->setSender_id(id);
     ack->setText("ACK");
 
     //respond to the HB
     send(ack,"out",id_to_channel(m->getSender_id(),id));
 
+    delete m;
     return;
 
 }
@@ -310,6 +321,11 @@ void Node::handleMessage(cMessage *t_msg){
     }
     */
 
+    if(m->getMex_type() == MEXTYPE_SELFHB){
+        send_hb(m);
+        return;
+    }
+
     if(m->getMex_type() == MEXTYPE_STD){
         handleStdMessage(m);
         return;
@@ -322,9 +338,14 @@ void Node::handleMessage(cMessage *t_msg){
         handleHBMessage(m);
         return;
     }
+    if(m->getMex_type() == MEXTYPE_HB_ACK){
+        handleHBAckMessage(m);
+        return;
+    }
 }
 
-void Node::mergeQueues(const std::vector<std::vector<QueueEntry>>& otherQueues){
+/*
+void Node::mergeQueues(const std::vector<std::vector<QueueEntry>> otherQueues){
     std::vector<QueueEntry> mergedQueue;
 
     // min-heap: vector of pairs <QueueEntry, index of the queue it came from>
@@ -407,6 +428,7 @@ void Node::mergeQueues(const std::vector<std::vector<QueueEntry>>& otherQueues){
     // Remove committed messages - TODO - We need to see how to handle it
 
 }
+*/
 
 void Node::finish(){
     //TODO
