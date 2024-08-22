@@ -21,7 +21,7 @@ class GenericMessage;
 class Message;
 class FaultMessage;
 /**
- * Class generated from <tt>msgtype.msg:14</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:11</tt> by opp_msgtool.
  * <pre>
  * class MQEntry
  * {
@@ -63,7 +63,7 @@ class MQEntry
 };
 
 /**
- * Class generated from <tt>msgtype.msg:20</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:17</tt> by opp_msgtool.
  * <pre>
  * message GenericMessage
  * {
@@ -104,7 +104,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const GenericMessage& obj) 
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, GenericMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:25</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:22</tt> by opp_msgtool.
  * <pre>
  * message Message extends GenericMessage
  * {
@@ -150,7 +150,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const Message& obj) {obj.pa
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, Message& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:31</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:28</tt> by opp_msgtool.
  * <pre>
  * message FaultMessage extends GenericMessage
  * {

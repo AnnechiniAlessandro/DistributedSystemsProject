@@ -9,6 +9,8 @@
 #include "msgtype_m.h"
 #include "queueentry.cc"
 
+#define MAX(a,b) ((a)>(b) ? (a) : (b))
+
 #define HEARTBEAT_PERIOD 10
 #define MAX_MEX_WAIT_TIME 0.001
 
@@ -21,6 +23,7 @@
 #define MEXTYPE_HB 3
 #define MEXTYPE_HB_ACK 4
 #define MEXTYPE_FAULT 5
+#define MEXTYPE_FSTAGE2 6
 //...
 
 #define NODESTATE_STD 0
@@ -83,13 +86,15 @@ class Node : public cSimpleModule
     virtual void handleMessage(cMessage *msg) override;
     virtual void mergeQueues(std::vector<QueueEntry> otherQueue);
     virtual void set_fault_state();
+    virtual void set_std_state();
     virtual void fault_detected();
     virtual void handle_fault_message(FaultMessage *fm);
+    virtual void handle_fault_stage2_message(FaultMessage *fm);
     virtual std::vector<MQEntry> prepareFaultQueue(int failed_node);
     virtual void finish() override;
 
   public:
-    Node():queue(),view(),committed_msgs(){ }
+    Node():queue(),view(),committed_msgs(),stage1(),stage2(){ }
 };
 
 Define_Module(Node);
@@ -124,6 +129,7 @@ void Node::initialize(){
 
     still_alive_neighbour = true;
     node_state = NODESTATE_STD;
+    last_fault_id = 0;
 
 }
 
@@ -158,7 +164,6 @@ void Node::send_standard_message(const char *text){
 
 std::vector<MQEntry> Node::prepareFaultQueue(int failed_node){
     std::vector<MQEntry> result = std::vector<MQEntry>();
-
     for(int i = 0; i<(int)queue.size(); i++){
         MQEntry mqe = MQEntry();
         if(queue[i].msg != nullptr && queue[i].l_id == failed_node){
@@ -172,11 +177,21 @@ std::vector<MQEntry> Node::prepareFaultQueue(int failed_node){
     return result;
 }
 
-void Node::set_fault_state(){
-    if(node_state != NODESTATE_FAULT){
-        node_state = NODESTATE_FAULT;
+void Node::set_std_state(){
+    if(node_state!=NODESTATE_STD){
+        bubble("ENTERED STANDARD STATE!");
+        node_state = NODESTATE_STD;
+        still_alive_neighbour = true;
+        checkTopMessage();
         stage1.clear();
         stage2.clear();
+    }
+}
+
+void Node::set_fault_state(){
+    if(node_state != NODESTATE_FAULT){
+        bubble("ENTERED FAULT STATE!");
+        node_state = NODESTATE_FAULT;
     }
 }
 
@@ -184,9 +199,6 @@ void Node::fault_detected(){
 
     last_fault_id++;
     int failed_node = hb_next_id;
-
-    //Prepare the queue to be sent
-    std::vector<MQEntry> list = prepareFaultQueue(failed_node);
 
     hb_next_id = (hb_next_id+1)%num_nodes;
     num_nodes--;
@@ -197,6 +209,11 @@ void Node::fault_detected(){
     stage1.insert(id);
 
     for(const int& elem : view){
+        if(elem==id) continue;
+
+        //Prepare the queue to be sent
+        std::vector<MQEntry> list = prepareFaultQueue(failed_node);
+
         FaultMessage *fm = new FaultMessage();
         fm->setQueueArraySize(list.size());
         for(int i=0; i<(int)list.size(); i++){
@@ -213,7 +230,39 @@ void Node::fault_detected(){
     return;
 }
 
+void Node::handle_fault_stage2_message(FaultMessage *fm){
+    //Ignore if the fault has already been handled
+    if(fm->getFault_id() < last_fault_id ||  (fm->getFault_id() == last_fault_id && node_state!=NODESTATE_FAULT)){
+        char aaaa[50];
+        sprintf(aaaa,"DISCARDED STAGE 2 (%d): %d < %d",NODESTATE_FAULT,fm->getFault_id(),last_fault_id);
+        bubble(aaaa);
+
+        delete fm;
+        return;
+    }
+
+    stage2.insert(fm->getSender_id());
+
+    char aaaa[50];
+    sprintf(aaaa,"STAGE 2 %d",(int) stage2.size());
+    bubble(aaaa);
+
+    //Check for stage 2 completion
+    if(std::includes(stage2.begin(),stage2.end(),view.begin(),view.end())){
+        set_std_state();
+    }
+
+    delete fm;
+
+}
+
 void Node::handle_fault_message(FaultMessage *fm){
+
+    //Ignore if the fault has already been handled
+    if(fm->getFault_id() < last_fault_id ||  (fm->getFault_id() == last_fault_id && node_state!=NODESTATE_FAULT)){
+        delete fm;
+        return;
+    }
 
     std::vector<QueueEntry> otherQueue = std::vector<QueueEntry>();
 
@@ -236,22 +285,75 @@ void Node::handle_fault_message(FaultMessage *fm){
     }
 
     //INSERT UNSTABLE MESSAGES IN QUEUE
-    mergeQueues(otherQueue);
+    //mergeQueues(otherQueue);
 
     stage1.insert(fm->getSender_id());
-    if(stage1.find(id)==stage1.end()){
+
+    if(fm->getFault_id() > last_fault_id){
         //First time receiving the fault message
         set_fault_state();
 
+        last_fault_id = fm->getFault_id();
+        int failed_node = fm->getFault_node();
+
+        //Prepare the queue to be sent
+        std::vector<MQEntry> list = prepareFaultQueue(failed_node);
+        view.erase(failed_node);
+        num_nodes = (int)view.size();
+
+        stage1.insert(id);
+        for(const int& elem : view){
+            if(elem==id) continue;
+
+            FaultMessage *fm = new FaultMessage();
+            fm->setQueueArraySize(list.size());
+            for(int i=0; i<(int)list.size(); i++){
+                fm->setQueue(i, list[i]);
+            }
+            fm->setFault_id(last_fault_id);
+            fm->setMex_type(MEXTYPE_FAULT);
+            fm->setSender_id(id);
+            fm->setFault_node(failed_node);
+
+            send(fm,"out",id_to_channel(elem,id));
+        }
 
     }
 
+    //Check for stage 1 completion
+    if(std::includes(stage1.begin(),stage1.end(),view.begin(),view.end())){
+
+        stage2.insert(id);
+        for(const int& elem : view){
+            if(elem == id) continue;
+
+            FaultMessage *msg = new FaultMessage();
+            msg->setMex_type(MEXTYPE_FSTAGE2);
+            msg->setSender_id(id);
+            msg->setFault_id(last_fault_id);
+
+            send(msg,"out",id_to_channel(elem,id));
+        }
+
+        //Check for stage 2 completion
+        if(std::includes(stage2.begin(),stage2.end(),view.begin(),view.end())){
+            set_std_state();
+        }
+
+    }
+
+    delete fm;
 
 }
 
 void Node::send_hb(Message *hb_msg){
 
     scheduleAt(simTime()+ HEARTBEAT_PERIOD,hb_msg);
+
+    //Postpone if we are handling a fault
+    if(node_state == NODESTATE_FAULT){
+        return;
+    }
 
     // Any time we send and HB we check if the previous one has been acked
     if(!still_alive_neighbour){
@@ -277,6 +379,9 @@ void Node::send_hb(Message *hb_msg){
 }
 
 void Node::checkTopMessage(){
+
+    if(node_state == NODESTATE_FAULT) return;
+
     bool is_valid;
     if(queue.size()==0) return;
     do{
@@ -296,7 +401,7 @@ void Node::checkTopMessage(){
 
 void Node::handleStdMessage(Message *m){
 
-    l_clock++;
+    l_clock = MAX(l_clock,m->getL_clock()) + 1;
 
     //Check if an ACK has already arrived
     QueueEntry *qe = nullptr;
@@ -343,7 +448,7 @@ void Node::handleStdMessage(Message *m){
 
 void Node::handleAckMessage(Message *m){
 
-    l_clock++;
+    l_clock = MAX(l_clock,m->getL_clock()) + 1;
 
     //Check if an ACK has already arrived
     QueueEntry *qe = nullptr;
@@ -399,7 +504,12 @@ void Node::handleHBAckMessage(Message *m){
 }
 
 void Node::handleHBMessage(Message *m){
-    l_clock++;
+    l_clock = MAX(l_clock,m->getL_clock()) + 1;
+
+    //Postpone if we are handling a fault
+    if(node_state == NODESTATE_FAULT){
+        return;
+    }
 
     Message *ack = new Message();
     ack->setL_clock(m->getL_clock());
@@ -444,6 +554,16 @@ void Node::handleMessage(cMessage *t_msg){
     if(gm->getMex_type() == MEXTYPE_HB_ACK){
         Message *m = (Message*) gm;
         handleHBAckMessage(m);
+        return;
+    }
+    if(gm->getMex_type() == MEXTYPE_FAULT){
+        FaultMessage *fm = (FaultMessage*) gm;
+        handle_fault_message(fm);
+        return;
+    }
+    if(gm->getMex_type() == MEXTYPE_FSTAGE2){
+        FaultMessage *fm = (FaultMessage*) gm;
+        handle_fault_stage2_message(fm);
         return;
     }
 
