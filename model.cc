@@ -12,12 +12,19 @@
 #define HEARTBEAT_PERIOD 10
 #define MAX_MEX_WAIT_TIME 0.001
 
+#define MEXOBJTYPE_STD 0
+#define MEXOBJTYPE_FAULT 1
+
 #define MEXTYPE_STD 0
 #define MEXTYPE_ACK 1
 #define MEXTYPE_SELFHB 2
 #define MEXTYPE_HB 3
 #define MEXTYPE_HB_ACK 4
+#define MEXTYPE_FAULT 5
 //...
+
+#define NODESTATE_STD 0
+#define NODESTATE_FAULT 1
 
 using namespace omnetpp;
 
@@ -42,6 +49,7 @@ class Node : public cSimpleModule
   private:
     int id;
     int l_clock;
+    int last_fault_id;
 
     int last_committed_id;
     int last_committed_l_clock;
@@ -51,6 +59,11 @@ class Node : public cSimpleModule
 
     std::vector<QueueEntry> queue;
     bool still_alive_neighbour;
+    int node_state;
+
+    //Stages sets for view change
+    std::set<int> stage1;
+    std::set<int> stage2;
 
     //Nodes in the group view
     std::set<int> view;
@@ -69,7 +82,10 @@ class Node : public cSimpleModule
     virtual void handleHBAckMessage(Message *m);
     virtual void handleMessage(cMessage *msg) override;
     virtual void mergeQueues(std::vector<QueueEntry> otherQueue);
+    virtual void set_fault_state();
     virtual void fault_detected();
+    virtual void handle_fault_message(FaultMessage *fm);
+    virtual std::vector<MQEntry> prepareFaultQueue(int failed_node);
     virtual void finish() override;
 
   public:
@@ -107,6 +123,8 @@ void Node::initialize(){
     }
 
     still_alive_neighbour = true;
+    node_state = NODESTATE_STD;
+
 }
 
 void Node::send_standard_message(const char *text){
@@ -138,10 +156,97 @@ void Node::send_standard_message(const char *text){
     std::push_heap(queue.begin(),queue.end(),is_after_qe);
 }
 
+std::vector<MQEntry> Node::prepareFaultQueue(int failed_node){
+    std::vector<MQEntry> result = std::vector<MQEntry>();
+
+    for(int i = 0; i<(int)queue.size(); i++){
+        MQEntry mqe = MQEntry();
+        if(queue[i].msg != nullptr && queue[i].l_id == failed_node){
+            mqe.setL_id(queue[i].l_id);
+            mqe.setL_clock(queue[i].l_clock);
+            mqe.setText(queue[i].msg->getText());
+            result.push_back(mqe);
+        }
+    }
+
+    return result;
+}
+
+void Node::set_fault_state(){
+    if(node_state != NODESTATE_FAULT){
+        node_state = NODESTATE_FAULT;
+        stage1.clear();
+        stage2.clear();
+    }
+}
+
 void Node::fault_detected(){
-    bubble("FAULT!");
-    still_alive_neighbour = true;
+
+    last_fault_id++;
+    int failed_node = hb_next_id;
+
+    //Prepare the queue to be sent
+    std::vector<MQEntry> list = prepareFaultQueue(failed_node);
+
+    hb_next_id = (hb_next_id+1)%num_nodes;
+    num_nodes--;
+    hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
+    view.erase(failed_node);
+
+    set_fault_state();
+    stage1.insert(id);
+
+    for(const int& elem : view){
+        FaultMessage *fm = new FaultMessage();
+        fm->setQueueArraySize(list.size());
+        for(int i=0; i<(int)list.size(); i++){
+            fm->setQueue(i, list[i]);
+        }
+        fm->setFault_id(last_fault_id);
+        fm->setMex_type(MEXTYPE_FAULT);
+        fm->setSender_id(id);
+        fm->setFault_node(failed_node);
+
+        send(fm,"out",id_to_channel(elem,id));
+    }
+
     return;
+}
+
+void Node::handle_fault_message(FaultMessage *fm){
+
+    std::vector<QueueEntry> otherQueue = std::vector<QueueEntry>();
+
+    for(int i=0; i<(int)fm->getQueueArraySize(); i++){
+
+        Message *m = new Message();
+        m->setMex_type(MEXTYPE_STD);
+        m->setText(fm->getQueue(i).getText());
+        m->setSender_id(fm->getSender_id());
+        m->setL_id(fm->getQueue(i).getL_id());
+        m->setL_clock(fm->getQueue(i).getL_clock());
+
+        QueueEntry qe = QueueEntry();
+        qe.setMsg(m);
+        for(const int& elem : view){
+            qe.acks.insert(elem);
+        }
+
+        otherQueue.push_back(qe);
+    }
+
+    //INSERT UNSTABLE MESSAGES IN QUEUE
+    mergeQueues(otherQueue);
+
+    stage1.insert(fm->getSender_id());
+    if(stage1.find(id)==stage1.end()){
+        //First time receiving the fault message
+        set_fault_state();
+
+
+    }
+
+
 }
 
 void Node::send_hb(Message *hb_msg){
@@ -312,36 +417,36 @@ void Node::handleHBMessage(Message *m){
 }
 
 void Node::handleMessage(cMessage *t_msg){
-    Message *m = (Message*) t_msg;
 
-    /*
-    if(m->isSelfMessage()){
-        //TODO
-        return;
-    }
-    */
+    GenericMessage *gm = (GenericMessage*) t_msg;
 
-    if(m->getMex_type() == MEXTYPE_SELFHB){
+    if(gm->getMex_type() == MEXTYPE_SELFHB){
+        Message *m = (Message*) gm;
         send_hb(m);
         return;
     }
 
-    if(m->getMex_type() == MEXTYPE_STD){
+    if(gm->getMex_type() == MEXTYPE_STD){
+        Message *m = (Message*) gm;
         handleStdMessage(m);
         return;
     }
-    if(m->getMex_type() == MEXTYPE_ACK){
+    if(gm->getMex_type() == MEXTYPE_ACK){
+        Message *m = (Message*) gm;
         handleAckMessage(m);
         return;
     }
-    if(m->getMex_type() == MEXTYPE_HB){
+    if(gm->getMex_type() == MEXTYPE_HB){
+        Message *m = (Message*) gm;
         handleHBMessage(m);
         return;
     }
-    if(m->getMex_type() == MEXTYPE_HB_ACK){
+    if(gm->getMex_type() == MEXTYPE_HB_ACK){
+        Message *m = (Message*) gm;
         handleHBAckMessage(m);
         return;
     }
+
 }
 
 void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
