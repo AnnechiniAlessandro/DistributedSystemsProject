@@ -570,48 +570,27 @@ void Node::handleMessage(cMessage *t_msg){
 }
 
 void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
-
-    std::vector<QueueEntry> mergedQueue;
-    int i = 0; //iterator for queue
-    int j = 0; //iterator for otherQueue
+    int i = 0;
+    int j = 0;
     int lenQ = queue.size();
     int lenOQ = otherQueue.size();
+    bool found = false;
 
-    // skip messages already committed locally
-    while(is_after_id(last_committed_l_clock, last_committed_id, otherQueue[j].l_clock, otherQueue[j].l_id)){
-        j++;
-    }
+    for(i = 0; i < lenOQ; i++){
+        if(is_after_id(otherQueue[j].l_clock, otherQueue[j].l_id, last_committed_l_clock, last_committed_id)){ // skip already committed messages
+            found = false;
+            for(j=0; j<lenQ && !found; j++){ // search if message already in the queue
+                found = (queue[j].l_clock == otherQueue[i].l_clock && queue[j].l_id == otherQueue[i].l_id);
+            }
 
-    // actual merge
-    while(i < lenQ && j < lenOQ){
-        if(is_after_qe(otherQueue[j], queue[i])){ // local queue has oldest message
-            mergedQueue.push_back(queue[i]);
-            i++;
-        }else if(is_after_qe(queue[i], otherQueue[j])){ // received queue has oldest message
-            mergedQueue.push_back(otherQueue[j]);
-            j++;
-        }else if(queue[i].l_clock == otherQueue[j].l_clock && queue[i].l_id == otherQueue[j].l_id){ // is the same message -> merge ack
-            queue[i].acks.insert(otherQueue[j].acks.begin(), otherQueue[j].acks.end());
-            mergedQueue.push_back(queue[i]);
-            i++;
-            j++;
+            if(found){
+                queue[j-1].acks.insert(otherQueue[i].acks.begin(), otherQueue[i].acks.end()); // is the same message -> merge ack
+            }else{
+                queue.push_back(otherQueue[i]);
+                std::push_heap(queue.begin(),queue.end(),is_after_qe);
+            }
         }
     }
-
-    // Add any remaining entries from the local queue
-    while (i < lenQ) {
-        mergedQueue.push_back(queue[i]);
-        i++;
-    }
-
-    // Add any remaining entries from the received queue
-    while (j < lenOQ) {
-        mergedQueue.push_back(otherQueue[j]);
-        j++;
-    }
-
-    // Replace the local queue with the merged queue
-    queue = std::move(mergedQueue);
 
     checkTopMessage();
 
