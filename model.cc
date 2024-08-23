@@ -73,6 +73,7 @@ class Node : public cSimpleModule
     int num_nodes;
 
     std::vector<Message*> committed_msgs;
+    std::vector<Message*> restoreQueue;
 
   protected:
     virtual void initialize() override;
@@ -82,7 +83,7 @@ class Node : public cSimpleModule
     virtual void handleStdMessage(Message *m);
     virtual void handleAckMessage(Message *m);
     virtual void handleHBMessage(Message *m);
-    virtual void handleHBAckMessage(Message *m);
+    virtual void handleHBAckMessage(HBAckMessage *m);
     virtual void handleMessage(cMessage *msg) override;
     virtual void mergeQueues(std::vector<QueueEntry> otherQueue);
     virtual void set_fault_state();
@@ -285,7 +286,7 @@ void Node::handle_fault_message(FaultMessage *fm){
     }
 
     //INSERT UNSTABLE MESSAGES IN QUEUE
-    //mergeQueues(otherQueue);
+    mergeQueues(otherQueue);
 
     stage1.insert(fm->getSender_id());
 
@@ -393,6 +394,7 @@ void Node::checkTopMessage(){
             last_committed_id = queue[0].l_id;
             last_committed_l_clock = queue[0].l_clock;
             committed_msgs.push_back(queue[0].msg);
+            restoreQueue.push_back(queue[0].msg);
             std::pop_heap(queue.begin(),queue.end(),is_after_qe);
             queue.pop_back();
         }
@@ -497,8 +499,16 @@ void Node::handleAckMessage(Message *m){
     return;
 }
 
-void Node::handleHBAckMessage(Message *m){
+void Node::handleHBAckMessage(HBAckMessage *m){
     still_alive_neighbour = true;
+    // TODO create a getter for the new type of message
+
+    for(int i = 0; i < restoreQueue.size(); i++){
+        if(is_after_id(m->getLast_l_clock(), m->getLast_l_id(), restoreQueue[i]->getL_clock(), restoreQueue[i]->getL_id())){
+            restoreQueue.erase(restoreQueue.begin()+i);
+        }
+    }
+
     delete m;
     return;
 }
@@ -552,7 +562,7 @@ void Node::handleMessage(cMessage *t_msg){
         return;
     }
     if(gm->getMex_type() == MEXTYPE_HB_ACK){
-        Message *m = (Message*) gm;
+        HBAckMessage *m = (HBAckMessage*) gm;
         handleHBAckMessage(m);
         return;
     }
@@ -592,10 +602,7 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
         }
     }
 
-    checkTopMessage();
-
     return;
-
 }
 
 void Node::finish(){

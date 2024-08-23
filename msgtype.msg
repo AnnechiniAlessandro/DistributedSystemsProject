@@ -30,3 +30,8 @@ message FaultMessage extends GenericMessage{
     int fault_node;
     MQEntry queue[];
 }
+
+message HBAckMessage extends Message{
+    int last_l_id;
+    int last_l_clock;
+}
