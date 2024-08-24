@@ -1777,6 +1777,380 @@ void FaultMessageDescriptor::setFieldStructValuePointer(omnetpp::any_ptr object,
     }
 }
 
+Register_Class(HBAckMessage)
+
+HBAckMessage::HBAckMessage(const char *name, short kind) : ::Message(name, kind)
+{
+}
+
+HBAckMessage::HBAckMessage(const HBAckMessage& other) : ::Message(other)
+{
+    copy(other);
+}
+
+HBAckMessage::~HBAckMessage()
+{
+}
+
+HBAckMessage& HBAckMessage::operator=(const HBAckMessage& other)
+{
+    if (this == &other) return *this;
+    ::Message::operator=(other);
+    copy(other);
+    return *this;
+}
+
+void HBAckMessage::copy(const HBAckMessage& other)
+{
+    this->last_l_id = other.last_l_id;
+    this->last_l_clock = other.last_l_clock;
+}
+
+void HBAckMessage::parsimPack(omnetpp::cCommBuffer *b) const
+{
+    ::Message::parsimPack(b);
+    doParsimPacking(b,this->last_l_id);
+    doParsimPacking(b,this->last_l_clock);
+}
+
+void HBAckMessage::parsimUnpack(omnetpp::cCommBuffer *b)
+{
+    ::Message::parsimUnpack(b);
+    doParsimUnpacking(b,this->last_l_id);
+    doParsimUnpacking(b,this->last_l_clock);
+}
+
+int HBAckMessage::getLast_l_id() const
+{
+    return this->last_l_id;
+}
+
+void HBAckMessage::setLast_l_id(int last_l_id)
+{
+    this->last_l_id = last_l_id;
+}
+
+int HBAckMessage::getLast_l_clock() const
+{
+    return this->last_l_clock;
+}
+
+void HBAckMessage::setLast_l_clock(int last_l_clock)
+{
+    this->last_l_clock = last_l_clock;
+}
+
+class HBAckMessageDescriptor : public omnetpp::cClassDescriptor
+{
+  private:
+    mutable const char **propertyNames;
+    enum FieldConstants {
+        FIELD_last_l_id,
+        FIELD_last_l_clock,
+    };
+  public:
+    HBAckMessageDescriptor();
+    virtual ~HBAckMessageDescriptor();
+
+    virtual bool doesSupport(omnetpp::cObject *obj) const override;
+    virtual const char **getPropertyNames() const override;
+    virtual const char *getProperty(const char *propertyName) const override;
+    virtual int getFieldCount() const override;
+    virtual const char *getFieldName(int field) const override;
+    virtual int findField(const char *fieldName) const override;
+    virtual unsigned int getFieldTypeFlags(int field) const override;
+    virtual const char *getFieldTypeString(int field) const override;
+    virtual const char **getFieldPropertyNames(int field) const override;
+    virtual const char *getFieldProperty(int field, const char *propertyName) const override;
+    virtual int getFieldArraySize(omnetpp::any_ptr object, int field) const override;
+    virtual void setFieldArraySize(omnetpp::any_ptr object, int field, int size) const override;
+
+    virtual const char *getFieldDynamicTypeString(omnetpp::any_ptr object, int field, int i) const override;
+    virtual std::string getFieldValueAsString(omnetpp::any_ptr object, int field, int i) const override;
+    virtual void setFieldValueAsString(omnetpp::any_ptr object, int field, int i, const char *value) const override;
+    virtual omnetpp::cValue getFieldValue(omnetpp::any_ptr object, int field, int i) const override;
+    virtual void setFieldValue(omnetpp::any_ptr object, int field, int i, const omnetpp::cValue& value) const override;
+
+    virtual const char *getFieldStructName(int field) const override;
+    virtual omnetpp::any_ptr getFieldStructValuePointer(omnetpp::any_ptr object, int field, int i) const override;
+    virtual void setFieldStructValuePointer(omnetpp::any_ptr object, int field, int i, omnetpp::any_ptr ptr) const override;
+};
+
+Register_ClassDescriptor(HBAckMessageDescriptor)
+
+HBAckMessageDescriptor::HBAckMessageDescriptor() : omnetpp::cClassDescriptor(omnetpp::opp_typename(typeid(HBAckMessage)), "Message")
+{
+    propertyNames = nullptr;
+}
+
+HBAckMessageDescriptor::~HBAckMessageDescriptor()
+{
+    delete[] propertyNames;
+}
+
+bool HBAckMessageDescriptor::doesSupport(omnetpp::cObject *obj) const
+{
+    return dynamic_cast<HBAckMessage *>(obj)!=nullptr;
+}
+
+const char **HBAckMessageDescriptor::getPropertyNames() const
+{
+    if (!propertyNames) {
+        static const char *names[] = {  nullptr };
+        omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+        const char **baseNames = base ? base->getPropertyNames() : nullptr;
+        propertyNames = mergeLists(baseNames, names);
+    }
+    return propertyNames;
+}
+
+const char *HBAckMessageDescriptor::getProperty(const char *propertyName) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    return base ? base->getProperty(propertyName) : nullptr;
+}
+
+int HBAckMessageDescriptor::getFieldCount() const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    return base ? 2+base->getFieldCount() : 2;
+}
+
+unsigned int HBAckMessageDescriptor::getFieldTypeFlags(int field) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldTypeFlags(field);
+        field -= base->getFieldCount();
+    }
+    static unsigned int fieldTypeFlags[] = {
+        FD_ISEDITABLE,    // FIELD_last_l_id
+        FD_ISEDITABLE,    // FIELD_last_l_clock
+    };
+    return (field >= 0 && field < 2) ? fieldTypeFlags[field] : 0;
+}
+
+const char *HBAckMessageDescriptor::getFieldName(int field) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldName(field);
+        field -= base->getFieldCount();
+    }
+    static const char *fieldNames[] = {
+        "last_l_id",
+        "last_l_clock",
+    };
+    return (field >= 0 && field < 2) ? fieldNames[field] : nullptr;
+}
+
+int HBAckMessageDescriptor::findField(const char *fieldName) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    int baseIndex = base ? base->getFieldCount() : 0;
+    if (strcmp(fieldName, "last_l_id") == 0) return baseIndex + 0;
+    if (strcmp(fieldName, "last_l_clock") == 0) return baseIndex + 1;
+    return base ? base->findField(fieldName) : -1;
+}
+
+const char *HBAckMessageDescriptor::getFieldTypeString(int field) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldTypeString(field);
+        field -= base->getFieldCount();
+    }
+    static const char *fieldTypeStrings[] = {
+        "int",    // FIELD_last_l_id
+        "int",    // FIELD_last_l_clock
+    };
+    return (field >= 0 && field < 2) ? fieldTypeStrings[field] : nullptr;
+}
+
+const char **HBAckMessageDescriptor::getFieldPropertyNames(int field) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldPropertyNames(field);
+        field -= base->getFieldCount();
+    }
+    switch (field) {
+        default: return nullptr;
+    }
+}
+
+const char *HBAckMessageDescriptor::getFieldProperty(int field, const char *propertyName) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldProperty(field, propertyName);
+        field -= base->getFieldCount();
+    }
+    switch (field) {
+        default: return nullptr;
+    }
+}
+
+int HBAckMessageDescriptor::getFieldArraySize(omnetpp::any_ptr object, int field) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldArraySize(object, field);
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        default: return 0;
+    }
+}
+
+void HBAckMessageDescriptor::setFieldArraySize(omnetpp::any_ptr object, int field, int size) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount()){
+            base->setFieldArraySize(object, field, size);
+            return;
+        }
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        default: throw omnetpp::cRuntimeError("Cannot set array size of field %d of class 'HBAckMessage'", field);
+    }
+}
+
+const char *HBAckMessageDescriptor::getFieldDynamicTypeString(omnetpp::any_ptr object, int field, int i) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldDynamicTypeString(object,field,i);
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        default: return nullptr;
+    }
+}
+
+std::string HBAckMessageDescriptor::getFieldValueAsString(omnetpp::any_ptr object, int field, int i) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldValueAsString(object,field,i);
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        case FIELD_last_l_id: return long2string(pp->getLast_l_id());
+        case FIELD_last_l_clock: return long2string(pp->getLast_l_clock());
+        default: return "";
+    }
+}
+
+void HBAckMessageDescriptor::setFieldValueAsString(omnetpp::any_ptr object, int field, int i, const char *value) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount()){
+            base->setFieldValueAsString(object, field, i, value);
+            return;
+        }
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        case FIELD_last_l_id: pp->setLast_l_id(string2long(value)); break;
+        case FIELD_last_l_clock: pp->setLast_l_clock(string2long(value)); break;
+        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'HBAckMessage'", field);
+    }
+}
+
+omnetpp::cValue HBAckMessageDescriptor::getFieldValue(omnetpp::any_ptr object, int field, int i) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldValue(object,field,i);
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        case FIELD_last_l_id: return pp->getLast_l_id();
+        case FIELD_last_l_clock: return pp->getLast_l_clock();
+        default: throw omnetpp::cRuntimeError("Cannot return field %d of class 'HBAckMessage' as cValue -- field index out of range?", field);
+    }
+}
+
+void HBAckMessageDescriptor::setFieldValue(omnetpp::any_ptr object, int field, int i, const omnetpp::cValue& value) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount()){
+            base->setFieldValue(object, field, i, value);
+            return;
+        }
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        case FIELD_last_l_id: pp->setLast_l_id(omnetpp::checked_int_cast<int>(value.intValue())); break;
+        case FIELD_last_l_clock: pp->setLast_l_clock(omnetpp::checked_int_cast<int>(value.intValue())); break;
+        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'HBAckMessage'", field);
+    }
+}
+
+const char *HBAckMessageDescriptor::getFieldStructName(int field) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldStructName(field);
+        field -= base->getFieldCount();
+    }
+    switch (field) {
+        default: return nullptr;
+    };
+}
+
+omnetpp::any_ptr HBAckMessageDescriptor::getFieldStructValuePointer(omnetpp::any_ptr object, int field, int i) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount())
+            return base->getFieldStructValuePointer(object, field, i);
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        default: return omnetpp::any_ptr(nullptr);
+    }
+}
+
+void HBAckMessageDescriptor::setFieldStructValuePointer(omnetpp::any_ptr object, int field, int i, omnetpp::any_ptr ptr) const
+{
+    omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    if (base) {
+        if (field < base->getFieldCount()){
+            base->setFieldStructValuePointer(object, field, i, ptr);
+            return;
+        }
+        field -= base->getFieldCount();
+    }
+    HBAckMessage *pp = omnetpp::fromAnyPtr<HBAckMessage>(object); (void)pp;
+    switch (field) {
+        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'HBAckMessage'", field);
+    }
+}
+
 namespace omnetpp {
 
 }  // namespace omnetpp

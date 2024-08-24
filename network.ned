@@ -5,6 +5,7 @@ simple Node
 {
     parameters:
         int id;
+        int node_state = 0 @mutable;
     gates:
         input in[4];
         output out[4];

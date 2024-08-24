@@ -34,24 +34,24 @@ class HBAckMessage;
  */
 class MQEntry
 {
-protected:
+  protected:
     int l_id = 0;
     int l_clock = 0;
     omnetpp::opp_string text;
 
-private:
+  private:
     void copy(const MQEntry& other);
 
-protected:
+  protected:
     bool operator==(const MQEntry&) = delete;
 
-public:
+  public:
     MQEntry();
     MQEntry(const MQEntry& other);
     virtual ~MQEntry();
     MQEntry& operator=(const MQEntry& other);
-    virtual void parsimPack(omnetpp::cCommBuffer* b) const;
-    virtual void parsimUnpack(omnetpp::cCommBuffer* b);
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b);
 
     virtual int getL_id() const;
     virtual void setL_id(int l_id);
@@ -59,8 +59,8 @@ public:
     virtual int getL_clock() const;
     virtual void setL_clock(int l_clock);
 
-    virtual const char* getText() const;
-    virtual void setText(const char* text);
+    virtual const char * getText() const;
+    virtual void setText(const char * text);
 };
 
 /**
@@ -75,24 +75,24 @@ public:
  */
 class GenericMessage : public ::omnetpp::cMessage
 {
-protected:
+  protected:
     int mex_type = 0;
     int sender_id = 0;
 
-private:
+  private:
     void copy(const GenericMessage& other);
 
-protected:
+  protected:
     bool operator==(const GenericMessage&) = delete;
 
-public:
-    GenericMessage(const char* name = nullptr, short kind = 0);
+  public:
+    GenericMessage(const char *name=nullptr, short kind=0);
     GenericMessage(const GenericMessage& other);
     virtual ~GenericMessage();
     GenericMessage& operator=(const GenericMessage& other);
-    virtual GenericMessage* dup() const override { return new GenericMessage(*this); }
-    virtual void parsimPack(omnetpp::cCommBuffer* b) const override;
-    virtual void parsimUnpack(omnetpp::cCommBuffer* b) override;
+    virtual GenericMessage *dup() const override {return new GenericMessage(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
     virtual int getMex_type() const;
     virtual void setMex_type(int mex_type);
@@ -101,8 +101,8 @@ public:
     virtual void setSender_id(int sender_id);
 };
 
-inline void doParsimPacking(omnetpp::cCommBuffer* b, const GenericMessage& obj) { obj.parsimPack(b); }
-inline void doParsimUnpacking(omnetpp::cCommBuffer* b, GenericMessage& obj) { obj.parsimUnpack(b); }
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const GenericMessage& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, GenericMessage& obj) {obj.parsimUnpack(b);}
 
 /**
  * Class generated from <tt>msgtype.msg:22</tt> by opp_msgtool.
@@ -117,25 +117,25 @@ inline void doParsimUnpacking(omnetpp::cCommBuffer* b, GenericMessage& obj) { ob
  */
 class Message : public ::GenericMessage
 {
-protected:
+  protected:
     int l_id = 0;
     int l_clock = 0;
     omnetpp::opp_string text;
 
-private:
+  private:
     void copy(const Message& other);
 
-protected:
+  protected:
     bool operator==(const Message&) = delete;
 
-public:
-    Message(const char* name = nullptr, short kind = 0);
+  public:
+    Message(const char *name=nullptr, short kind=0);
     Message(const Message& other);
     virtual ~Message();
     Message& operator=(const Message& other);
-    virtual Message* dup() const override { return new Message(*this); }
-    virtual void parsimPack(omnetpp::cCommBuffer* b) const override;
-    virtual void parsimUnpack(omnetpp::cCommBuffer* b) override;
+    virtual Message *dup() const override {return new Message(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
     virtual int getL_id() const;
     virtual void setL_id(int l_id);
@@ -143,12 +143,12 @@ public:
     virtual int getL_clock() const;
     virtual void setL_clock(int l_clock);
 
-    virtual const char* getText() const;
-    virtual void setText(const char* text);
+    virtual const char * getText() const;
+    virtual void setText(const char * text);
 };
 
-inline void doParsimPacking(omnetpp::cCommBuffer* b, const Message& obj) { obj.parsimPack(b); }
-inline void doParsimUnpacking(omnetpp::cCommBuffer* b, Message& obj) { obj.parsimUnpack(b); }
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const Message& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, Message& obj) {obj.parsimUnpack(b);}
 
 /**
  * Class generated from <tt>msgtype.msg:28</tt> by opp_msgtool.
@@ -163,26 +163,26 @@ inline void doParsimUnpacking(omnetpp::cCommBuffer* b, Message& obj) { obj.parsi
  */
 class FaultMessage : public ::GenericMessage
 {
-protected:
+  protected:
     int fault_id = 0;
     int fault_node = 0;
-    MQEntry* queue = nullptr;
+    MQEntry *queue = nullptr;
     size_t queue_arraysize = 0;
 
-private:
+  private:
     void copy(const FaultMessage& other);
 
-protected:
+  protected:
     bool operator==(const FaultMessage&) = delete;
 
-public:
-    FaultMessage(const char* name = nullptr, short kind = 0);
+  public:
+    FaultMessage(const char *name=nullptr, short kind=0);
     FaultMessage(const FaultMessage& other);
     virtual ~FaultMessage();
     FaultMessage& operator=(const FaultMessage& other);
-    virtual FaultMessage* dup() const override { return new FaultMessage(*this); }
-    virtual void parsimPack(omnetpp::cCommBuffer* b) const override;
-    virtual void parsimUnpack(omnetpp::cCommBuffer* b) override;
+    virtual FaultMessage *dup() const override {return new FaultMessage(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
     virtual int getFault_id() const;
     virtual void setFault_id(int fault_id);
@@ -193,16 +193,16 @@ public:
     virtual void setQueueArraySize(size_t size);
     virtual size_t getQueueArraySize() const;
     virtual const MQEntry& getQueue(size_t k) const;
-    virtual MQEntry& getQueueForUpdate(size_t k) { return const_cast<MQEntry&>(const_cast<FaultMessage*>(this)->getQueue(k)); }
+    virtual MQEntry& getQueueForUpdate(size_t k) { return const_cast<MQEntry&>(const_cast<FaultMessage*>(this)->getQueue(k));}
     virtual void setQueue(size_t k, const MQEntry& queue);
     virtual void insertQueue(size_t k, const MQEntry& queue);
-    [[deprecated]] void insertQueue(const MQEntry& queue) { appendQueue(queue); }
+    [[deprecated]] void insertQueue(const MQEntry& queue) {appendQueue(queue);}
     virtual void appendQueue(const MQEntry& queue);
     virtual void eraseQueue(size_t k);
 };
 
-inline void doParsimPacking(omnetpp::cCommBuffer* b, const FaultMessage& obj) { obj.parsimPack(b); }
-inline void doParsimUnpacking(omnetpp::cCommBuffer* b, FaultMessage& obj) { obj.parsimUnpack(b); }
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const FaultMessage& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, FaultMessage& obj) {obj.parsimUnpack(b);}
 
 /**
  * Class generated from <tt>msgtype.msg:34</tt> by opp_msgtool.
@@ -216,24 +216,24 @@ inline void doParsimUnpacking(omnetpp::cCommBuffer* b, FaultMessage& obj) { obj.
  */
 class HBAckMessage : public ::Message
 {
-protected:
+  protected:
     int last_l_id = 0;
     int last_l_clock = 0;
 
-private:
+  private:
     void copy(const HBAckMessage& other);
 
-protected:
+  protected:
     bool operator==(const HBAckMessage&) = delete;
 
-public:
-    HBAckMessage(const char* name = nullptr, short kind = 0);
+  public:
+    HBAckMessage(const char *name=nullptr, short kind=0);
     HBAckMessage(const HBAckMessage& other);
     virtual ~HBAckMessage();
     HBAckMessage& operator=(const HBAckMessage& other);
-    virtual HBAckMessage* dup() const override { return new HBAckMessage(*this); }
-    virtual void parsimPack(omnetpp::cCommBuffer* b) const override;
-    virtual void parsimUnpack(omnetpp::cCommBuffer* b) override;
+    virtual HBAckMessage *dup() const override {return new HBAckMessage(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
     virtual int getLast_l_id() const;
     virtual void setLast_l_id(int last_l_id);
@@ -242,18 +242,18 @@ public:
     virtual void setLast_l_clock(int last_l_clock);
 };
 
-inline void doParsimPacking(omnetpp::cCommBuffer* b, const HBAckMessage& obj) { obj.parsimPack(b); }
-inline void doParsimUnpacking(omnetpp::cCommBuffer* b, HBAckMessage& obj) { obj.parsimUnpack(b); }
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const HBAckMessage& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, HBAckMessage& obj) {obj.parsimUnpack(b);}
 
 
 namespace omnetpp {
 
-    inline any_ptr toAnyPtr(const MQEntry* p) { if (auto obj = as_cObject(p)) return any_ptr(obj); else return any_ptr(p); }
-    template<> inline MQEntry* fromAnyPtr(any_ptr ptr) { return ptr.get<MQEntry>(); }
-    template<> inline GenericMessage* fromAnyPtr(any_ptr ptr) { return check_and_cast<GenericMessage*>(ptr.get<cObject>()); }
-    template<> inline Message* fromAnyPtr(any_ptr ptr) { return check_and_cast<Message*>(ptr.get<cObject>()); }
-    template<> inline FaultMessage* fromAnyPtr(any_ptr ptr) { return check_and_cast<FaultMessage*>(ptr.get<cObject>()); }
-    template<> inline HBAckMessage* fromAnyPtr(any_ptr ptr) { return check_and_cast<HBAckMessage*>(ptr.get<cObject>()); }
+inline any_ptr toAnyPtr(const MQEntry *p) {if (auto obj = as_cObject(p)) return any_ptr(obj); else return any_ptr(p);}
+template<> inline MQEntry *fromAnyPtr(any_ptr ptr) { return ptr.get<MQEntry>(); }
+template<> inline GenericMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<GenericMessage*>(ptr.get<cObject>()); }
+template<> inline Message *fromAnyPtr(any_ptr ptr) { return check_and_cast<Message*>(ptr.get<cObject>()); }
+template<> inline FaultMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<FaultMessage*>(ptr.get<cObject>()); }
+template<> inline HBAckMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<HBAckMessage*>(ptr.get<cObject>()); }
 
 }  // namespace omnetpp
 

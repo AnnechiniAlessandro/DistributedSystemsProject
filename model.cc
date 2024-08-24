@@ -14,9 +14,6 @@
 #define HEARTBEAT_PERIOD 10
 #define MAX_MEX_WAIT_TIME 0.001
 
-#define MEXOBJTYPE_STD 0
-#define MEXOBJTYPE_FAULT 1
-
 #define MEXTYPE_STD 0
 #define MEXTYPE_ACK 1
 #define MEXTYPE_SELFHB 2
@@ -28,6 +25,7 @@
 
 #define NODESTATE_STD 0
 #define NODESTATE_FAULT 1
+#define NODESTATE_CRASHED 2
 
 using namespace omnetpp;
 
@@ -92,6 +90,7 @@ class Node : public cSimpleModule
     virtual void handle_fault_message(FaultMessage *fm);
     virtual void handle_fault_stage2_message(FaultMessage *fm);
     virtual std::vector<MQEntry> prepareFaultQueue(int failed_node);
+    virtual void handleParameterChange(const char *parname) override;
     virtual void finish() override;
 
   public:
@@ -135,6 +134,10 @@ void Node::initialize(){
 }
 
 void Node::send_standard_message(const char *text){
+
+    if(node_state == NODESTATE_CRASHED){
+        return;
+    }
 
     for(const int& elem : view){
         if(elem == id) continue;
@@ -182,6 +185,7 @@ void Node::set_std_state(){
     if(node_state!=NODESTATE_STD){
         bubble("ENTERED STANDARD STATE!");
         node_state = NODESTATE_STD;
+        par("node_state").setIntValue(NODESTATE_STD);
         still_alive_neighbour = true;
         checkTopMessage();
         stage1.clear();
@@ -193,10 +197,15 @@ void Node::set_fault_state(){
     if(node_state != NODESTATE_FAULT){
         bubble("ENTERED FAULT STATE!");
         node_state = NODESTATE_FAULT;
+        par("node_state").setIntValue(NODESTATE_FAULT);
     }
 }
 
 void Node::fault_detected(){
+
+    if(node_state == NODESTATE_CRASHED){
+        return;
+    }
 
     last_fault_id++;
     int failed_node = hb_next_id;
@@ -232,21 +241,20 @@ void Node::fault_detected(){
 }
 
 void Node::handle_fault_stage2_message(FaultMessage *fm){
+
+    if(node_state == NODESTATE_CRASHED){
+        delete fm;
+        return;
+    }
+
     //Ignore if the fault has already been handled
     if(fm->getFault_id() < last_fault_id ||  (fm->getFault_id() == last_fault_id && node_state!=NODESTATE_FAULT)){
-        char aaaa[50];
-        sprintf(aaaa,"DISCARDED STAGE 2 (%d): %d < %d",NODESTATE_FAULT,fm->getFault_id(),last_fault_id);
-        bubble(aaaa);
 
         delete fm;
         return;
     }
 
     stage2.insert(fm->getSender_id());
-
-    char aaaa[50];
-    sprintf(aaaa,"STAGE 2 %d",(int) stage2.size());
-    bubble(aaaa);
 
     //Check for stage 2 completion
     if(std::includes(stage2.begin(),stage2.end(),view.begin(),view.end())){
@@ -258,6 +266,11 @@ void Node::handle_fault_stage2_message(FaultMessage *fm){
 }
 
 void Node::handle_fault_message(FaultMessage *fm){
+
+    if(node_state == NODESTATE_CRASHED){
+        delete fm;
+        return;
+    }
 
     //Ignore if the fault has already been handled
     if(fm->getFault_id() < last_fault_id ||  (fm->getFault_id() == last_fault_id && node_state!=NODESTATE_FAULT)){
@@ -351,6 +364,10 @@ void Node::send_hb(Message *hb_msg){
 
     scheduleAt(simTime()+ HEARTBEAT_PERIOD,hb_msg);
 
+    if(node_state == NODESTATE_CRASHED){
+        return;
+    }
+
     //Postpone if we are handling a fault
     if(node_state == NODESTATE_FAULT){
         return;
@@ -381,6 +398,10 @@ void Node::send_hb(Message *hb_msg){
 
 void Node::checkTopMessage(){
 
+    if(node_state == NODESTATE_CRASHED){
+        return;
+    }
+
     if(node_state == NODESTATE_FAULT) return;
 
     bool is_valid;
@@ -402,6 +423,10 @@ void Node::checkTopMessage(){
 }
 
 void Node::handleStdMessage(Message *m){
+
+    if(node_state == NODESTATE_CRASHED){
+        return;
+    }
 
     l_clock = MAX(l_clock,m->getL_clock()) + 1;
 
@@ -449,6 +474,10 @@ void Node::handleStdMessage(Message *m){
 }
 
 void Node::handleAckMessage(Message *m){
+
+    if(node_state == NODESTATE_CRASHED){
+        return;
+    }
 
     l_clock = MAX(l_clock,m->getL_clock()) + 1;
 
@@ -500,12 +529,18 @@ void Node::handleAckMessage(Message *m){
 }
 
 void Node::handleHBAckMessage(HBAckMessage *m){
+
+    if(node_state == NODESTATE_CRASHED){
+        return;
+    }
+
     still_alive_neighbour = true;
     // TODO create a getter for the new type of message
 
     for(int i = 0; i < restoreQueue.size(); i++){
         if(is_after_id(m->getLast_l_clock(), m->getLast_l_id(), restoreQueue[i]->getL_clock(), restoreQueue[i]->getL_id())){
             restoreQueue.erase(restoreQueue.begin()+i);
+            i--;
         }
     }
 
@@ -514,6 +549,11 @@ void Node::handleHBAckMessage(HBAckMessage *m){
 }
 
 void Node::handleHBMessage(Message *m){
+
+    if(node_state == NODESTATE_CRASHED){
+        return;
+    }
+
     l_clock = MAX(l_clock,m->getL_clock()) + 1;
 
     //Postpone if we are handling a fault
@@ -521,12 +561,14 @@ void Node::handleHBMessage(Message *m){
         return;
     }
 
-    Message *ack = new Message();
+    HBAckMessage *ack = new HBAckMessage();
     ack->setL_clock(m->getL_clock());
     ack->setL_id(m->getL_id());
     ack->setMex_type(MEXTYPE_HB_ACK);
     ack->setSender_id(id);
     ack->setText("ACK");
+    ack->setLast_l_clock(last_committed_l_clock);
+    ack->setLast_l_id(last_committed_id);
 
     //respond to the HB
     send(ack,"out",id_to_channel(m->getSender_id(),id));
@@ -543,6 +585,11 @@ void Node::handleMessage(cMessage *t_msg){
     if(gm->getMex_type() == MEXTYPE_SELFHB){
         Message *m = (Message*) gm;
         send_hb(m);
+        return;
+    }
+
+    if(node_state == NODESTATE_CRASHED){
+        delete t_msg;
         return;
     }
 
@@ -603,6 +650,18 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
     }
 
     return;
+}
+
+void Node::handleParameterChange(const char *parname) {
+    if (strcmp(parname, "node_state") == 0) {
+        int new_state = par("node_state").intValue();
+        if(new_state == NODESTATE_STD){
+            set_std_state();
+            return;
+        }else if(new_state == NODESTATE_CRASHED){
+            node_state = NODESTATE_CRASHED;
+        }
+    }
 }
 
 void Node::finish(){
