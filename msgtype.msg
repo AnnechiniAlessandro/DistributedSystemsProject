@@ -6,6 +6,8 @@
 // 4) HB Ack
 // 5) Failure + queue exchange
 // 6) Failure stage 2
+// 7) New Node Message
+// 8) New Node Message Stage 2
 // ...
 
 class MQEntry{
@@ -35,3 +37,13 @@ message HBAckMessage extends Message{
     int last_l_id;
     int last_l_clock;
 }
+
+message NewNodeMessage extends GenericMessage{
+    int new_node_id;
+    int new_hb_next_id;
+    MQEntry queue[];
+}
+
+message NewNodeStage2Message extends NewNodeMessage{}
+
+message NewNodeInfoMessage extends NewNodeMessage{}

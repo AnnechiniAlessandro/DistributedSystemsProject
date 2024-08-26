@@ -21,8 +21,11 @@ class GenericMessage;
 class Message;
 class FaultMessage;
 class HBAckMessage;
+class NewNodeMessage;
+class NewNodeStage2Message;
+class NewNodeInfoMessage;
 /**
- * Class generated from <tt>msgtype.msg:11</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:13</tt> by opp_msgtool.
  * <pre>
  * class MQEntry
  * {
@@ -64,7 +67,7 @@ class MQEntry
 };
 
 /**
- * Class generated from <tt>msgtype.msg:17</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:19</tt> by opp_msgtool.
  * <pre>
  * message GenericMessage
  * {
@@ -105,7 +108,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const GenericMessage& obj) 
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, GenericMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:22</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:24</tt> by opp_msgtool.
  * <pre>
  * message Message extends GenericMessage
  * {
@@ -151,7 +154,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const Message& obj) {obj.pa
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, Message& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:28</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:30</tt> by opp_msgtool.
  * <pre>
  * message FaultMessage extends GenericMessage
  * {
@@ -205,7 +208,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const FaultMessage& obj) {o
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, FaultMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:34</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:36</tt> by opp_msgtool.
  * <pre>
  * message HBAckMessage extends Message
  * {
@@ -245,6 +248,122 @@ class HBAckMessage : public ::Message
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const HBAckMessage& obj) {obj.parsimPack(b);}
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, HBAckMessage& obj) {obj.parsimUnpack(b);}
 
+/**
+ * Class generated from <tt>msgtype.msg:41</tt> by opp_msgtool.
+ * <pre>
+ * message NewNodeMessage extends GenericMessage
+ * {
+ *     int new_node_id;
+ *     int new_hb_next_id;
+ *     MQEntry queue[];
+ * }
+ * </pre>
+ */
+class NewNodeMessage : public ::GenericMessage
+{
+  protected:
+    int new_node_id = 0;
+    int new_hb_next_id = 0;
+    MQEntry *queue = nullptr;
+    size_t queue_arraysize = 0;
+
+  private:
+    void copy(const NewNodeMessage& other);
+
+  protected:
+    bool operator==(const NewNodeMessage&) = delete;
+
+  public:
+    NewNodeMessage(const char *name=nullptr, short kind=0);
+    NewNodeMessage(const NewNodeMessage& other);
+    virtual ~NewNodeMessage();
+    NewNodeMessage& operator=(const NewNodeMessage& other);
+    virtual NewNodeMessage *dup() const override {return new NewNodeMessage(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
+
+    virtual int getNew_node_id() const;
+    virtual void setNew_node_id(int new_node_id);
+
+    virtual int getNew_hb_next_id() const;
+    virtual void setNew_hb_next_id(int new_hb_next_id);
+
+    virtual void setQueueArraySize(size_t size);
+    virtual size_t getQueueArraySize() const;
+    virtual const MQEntry& getQueue(size_t k) const;
+    virtual MQEntry& getQueueForUpdate(size_t k) { return const_cast<MQEntry&>(const_cast<NewNodeMessage*>(this)->getQueue(k));}
+    virtual void setQueue(size_t k, const MQEntry& queue);
+    virtual void insertQueue(size_t k, const MQEntry& queue);
+    [[deprecated]] void insertQueue(const MQEntry& queue) {appendQueue(queue);}
+    virtual void appendQueue(const MQEntry& queue);
+    virtual void eraseQueue(size_t k);
+};
+
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeMessage& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeMessage& obj) {obj.parsimUnpack(b);}
+
+/**
+ * Class generated from <tt>msgtype.msg:47</tt> by opp_msgtool.
+ * <pre>
+ * message NewNodeStage2Message extends NewNodeMessage
+ * {
+ * }
+ * </pre>
+ */
+class NewNodeStage2Message : public ::NewNodeMessage
+{
+  protected:
+
+  private:
+    void copy(const NewNodeStage2Message& other);
+
+  protected:
+    bool operator==(const NewNodeStage2Message&) = delete;
+
+  public:
+    NewNodeStage2Message(const char *name=nullptr, short kind=0);
+    NewNodeStage2Message(const NewNodeStage2Message& other);
+    virtual ~NewNodeStage2Message();
+    NewNodeStage2Message& operator=(const NewNodeStage2Message& other);
+    virtual NewNodeStage2Message *dup() const override {return new NewNodeStage2Message(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
+};
+
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeStage2Message& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeStage2Message& obj) {obj.parsimUnpack(b);}
+
+/**
+ * Class generated from <tt>msgtype.msg:49</tt> by opp_msgtool.
+ * <pre>
+ * message NewNodeInfoMessage extends NewNodeMessage
+ * {
+ * }
+ * </pre>
+ */
+class NewNodeInfoMessage : public ::NewNodeMessage
+{
+  protected:
+
+  private:
+    void copy(const NewNodeInfoMessage& other);
+
+  protected:
+    bool operator==(const NewNodeInfoMessage&) = delete;
+
+  public:
+    NewNodeInfoMessage(const char *name=nullptr, short kind=0);
+    NewNodeInfoMessage(const NewNodeInfoMessage& other);
+    virtual ~NewNodeInfoMessage();
+    NewNodeInfoMessage& operator=(const NewNodeInfoMessage& other);
+    virtual NewNodeInfoMessage *dup() const override {return new NewNodeInfoMessage(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
+};
+
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeInfoMessage& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeInfoMessage& obj) {obj.parsimUnpack(b);}
+
 
 namespace omnetpp {
 
@@ -254,6 +373,9 @@ template<> inline GenericMessage *fromAnyPtr(any_ptr ptr) { return check_and_cas
 template<> inline Message *fromAnyPtr(any_ptr ptr) { return check_and_cast<Message*>(ptr.get<cObject>()); }
 template<> inline FaultMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<FaultMessage*>(ptr.get<cObject>()); }
 template<> inline HBAckMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<HBAckMessage*>(ptr.get<cObject>()); }
+template<> inline NewNodeMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<NewNodeMessage*>(ptr.get<cObject>()); }
+template<> inline NewNodeStage2Message *fromAnyPtr(any_ptr ptr) { return check_and_cast<NewNodeStage2Message*>(ptr.get<cObject>()); }
+template<> inline NewNodeInfoMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<NewNodeInfoMessage*>(ptr.get<cObject>()); }
 
 }  // namespace omnetpp
 
