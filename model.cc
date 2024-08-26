@@ -81,6 +81,9 @@ class Node : public cSimpleModule
     std::vector<Message*> committed_msgs;
     std::vector<Message*> restoreQueue;
 
+    //Buffered recovery message
+    NewNodeMessage *buffered_nnm;
+
   protected:
     virtual void initialize() override;
     virtual void send_standard_message(const char *text);
@@ -147,6 +150,7 @@ void Node::initialize(){
     node_state = NODESTATE_STD;
     last_fault_id = 0;
 
+    buffered_nnm = nullptr;
 }
 
 void Node::send_standard_message(const char *text){
@@ -248,6 +252,8 @@ void Node::revive(){
     }
     queue.clear();
 
+    last_fault_id++;
+
     set_newnode_state();
 
     stage1_nn.insert(id);
@@ -274,6 +280,23 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
 
     if(node_state == NODESTATE_CRASHED){
         delete m;
+        return;
+    }
+
+    //If the fault was not detected yet, trigger the Fault protocol first
+    if(view.find(m->getNew_node_id()) != view.end() && node_state == NODESTATE_STD){
+
+        buffered_nnm = m;
+        if(m->getNew_node_id() == hb_next_id){
+            fault_detected();
+        }
+        return;
+
+    }
+
+    //If the fault has already been detected, wait for the Fault protocol to finish
+    if(node_state == NODESTATE_FAULT){
+        buffered_nnm = m;
         return;
     }
 
@@ -521,7 +544,14 @@ void Node::handle_fault_stage2_message(FaultMessage *fm){
 
     //Check for stage 2 completion
     if(std::includes(stage2.begin(),stage2.end(),view.begin(),view.end())){
-        set_std_state();
+        if(buffered_nnm == nullptr){
+            set_std_state();
+        }else{
+            set_std_state();
+            NewNodeMessage *nnm = buffered_nnm;
+            buffered_nnm = nullptr;
+            handleNewNodeS1Message(nnm);
+        }
     }
 
     delete fm;
@@ -619,7 +649,14 @@ void Node::handle_fault_message(FaultMessage *fm){
 
         //Check for stage 2 completion
         if(std::includes(stage2.begin(),stage2.end(),view.begin(),view.end())){
-            set_std_state();
+            if(buffered_nnm == nullptr){
+                set_std_state();
+            }else{
+                set_std_state();
+                NewNodeMessage *nnm = buffered_nnm;
+                buffered_nnm = nullptr;
+                handleNewNodeS1Message(nnm);
+            }
         }
 
     }
