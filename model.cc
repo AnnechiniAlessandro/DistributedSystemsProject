@@ -191,6 +191,7 @@ std::vector<MQEntry> Node::prepareFaultQueue(int failed_node){
     for(int i = 0; i<(int)queue.size(); i++){
         MQEntry mqe = MQEntry();
         if(queue[i].msg != nullptr && queue[i].l_id == failed_node){
+            queue[i].acks.insert(view.begin(), view.end());
             mqe.setL_id(queue[i].l_id);
             mqe.setL_clock(queue[i].l_clock);
             mqe.setText(queue[i].msg->getText());
@@ -205,6 +206,7 @@ std::vector<MQEntry> Node::prepareNewNodeQueue(){
     for(int i = 0; i<(int)queue.size(); i++){
         MQEntry mqe = MQEntry();
         if(queue[i].msg != nullptr){
+            queue[i].acks.insert(view.begin(), view.end());
             mqe.setL_id(queue[i].l_id);
             mqe.setL_clock(queue[i].l_clock);
             mqe.setText(queue[i].msg->getText());
@@ -789,6 +791,7 @@ void Node::handleStdMessage(Message *m){
 void Node::handleAckMessage(Message *m){
 
     if(node_state == NODESTATE_CRASHED){
+        delete m;
         return;
     }
 
@@ -838,6 +841,7 @@ void Node::handleAckMessage(Message *m){
 
     checkTopMessage();
 
+    delete m;
     return;
 }
 
