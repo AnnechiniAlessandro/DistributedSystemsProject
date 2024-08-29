@@ -78,6 +78,7 @@ class Node : public cSimpleModule
 
     //Nodes in the group view
     std::set<int> view;
+    std::set<int> original_view;
     int num_nodes;
     int original_num_nodes;
 
@@ -126,7 +127,7 @@ class Node : public cSimpleModule
     virtual void finish() override;
 
   public:
-    Node():queue(),view(),committed_msgs(),stage1(),stage2(),stage1_nn(),stage2_nn(){ }
+    Node():queue(),view(),committed_msgs(),stage1(),stage2(),stage1_nn(),stage2_nn(),original_view(){ }
 };
 
 Define_Module(Node);
@@ -138,6 +139,7 @@ void Node::initialize(){
     num_nodes = 0;
     for(int i=0; i< gateSize("out")+1; i++){
         view.insert(i);
+        original_view.insert(i);
         num_nodes++;
     }
     original_num_nodes = num_nodes;
@@ -975,6 +977,11 @@ void Node::handleAckMessage(Message *m){
         return;
     }
 
+    if(node_state == NODESTATE_NEWNODE){
+        delete m;
+        return;
+    }
+
     l_clock = MAX(l_clock,m->getL_clock()) + 1;
 
     checkLastCommittedVector(m);
@@ -992,7 +999,7 @@ void Node::handleAckMessage(Message *m){
         QueueEntry newqe = QueueEntry();
         newqe.setMsg(nullptr);
         newqe.l_clock = m->getL_clock();
-        newqe.l_clock = m->getL_id();
+        newqe.l_id = m->getL_id();
 
         //Add own ack AND sender ack
         newqe.acks.insert(id);
@@ -1024,6 +1031,13 @@ void Node::handleAckMessage(Message *m){
     }
 
     checkTopMessage();
+
+    char aaaa[1024];
+    sprintf(aaaa,"BBBB ");
+    for(int k=0; k<(int)queue.size(); k++){
+        sprintf(aaaa,"%s (%d,%d) ",aaaa,queue[k].l_id,queue[k].l_clock);
+    }
+    bubble(aaaa);
 
     delete m;
     return;
@@ -1162,7 +1176,8 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
     bool found = false;
 
     for(i = 0; i < lenOQ; i++){
-        if(is_after_id(otherQueue[j].l_clock, otherQueue[j].l_id, last_committed_l_clock_vector[id], last_committed_id_vector[id])){ // skip already committed messages
+        if(is_after_id(otherQueue[i].l_clock, otherQueue[i].l_id, last_committed_l_clock_vector[id], last_committed_id_vector[id])){ // skip already committed messages
+
             found = false;
             for(j=0; j<lenQ && !found; j++){ // search if message already in the queue
                 found = (queue[j].l_clock == otherQueue[i].l_clock && queue[j].l_id == otherQueue[i].l_id);
@@ -1177,8 +1192,10 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
                         delete otherQueue[i].msg;
                 }
             }else{
+
                 queue.push_back(otherQueue[i]);
                 std::push_heap(queue.begin(),queue.end(),is_after_qe);
+
             }
         }
     }
