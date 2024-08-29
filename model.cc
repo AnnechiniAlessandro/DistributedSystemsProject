@@ -24,6 +24,7 @@
 #define MEXTYPE_NEWNODE 7
 #define MEXTYPE_NNSTAGE2 8
 #define MEXTYPE_RECOVERYINFO 9
+#define MEXTYPE_OLDNODE 10
 //...
 
 #define NODESTATE_STD 0
@@ -47,6 +48,9 @@ int id_to_channel(int oth_id, int my_id){
 }
 int channel_to_id(int channel, int my_id){
     return channel >= my_id ? channel+1 : channel;
+}
+omnetpp::SimTime next_hb_time(){
+    return simTime()+ HEARTBEAT_PERIOD + (rand()%10 - 5)*0.01;
 }
 
 class Node : public cSimpleModule
@@ -102,6 +106,7 @@ class Node : public cSimpleModule
     virtual void revive();
     virtual void fault_detected();
     virtual void handle_fault_message(FaultMessage *fm);
+    virtual void handle_oldnode_message(OldNodeMessage *m);
     virtual void handle_fault_stage2_message(FaultMessage *fm);
     virtual void handleNewNodeS1Message(NewNodeMessage *m);
     virtual void handleNewNodeS2Message(NewNodeMessage *m);
@@ -139,7 +144,7 @@ void Node::initialize(){
     //Schedule the event of sending the first HB
     Message *hb_msg = new Message();
     hb_msg->setMex_type(MEXTYPE_SELFHB);
-    scheduleAt(simTime()+ HEARTBEAT_PERIOD,hb_msg);
+    scheduleAt(next_hb_time(),hb_msg);
 
     /*if(id==0){
         l_clock++;
@@ -667,9 +672,54 @@ void Node::handle_fault_message(FaultMessage *fm){
 
 }
 
+void Node::handle_oldnode_message(OldNodeMessage *m){
+    if(node_state == NODESTATE_CRASHED){
+        delete m;
+        return;
+    }
+
+    if(node_state == NODESTATE_FAULT){
+        delete m;
+        return;
+    }
+
+    if(node_state == NODESTATE_NEWNODE){
+        delete m;
+        return;
+    }
+
+    last_fault_id++;
+
+    set_newnode_state();
+    stage1_nn.insert(id);
+
+    if(view.find(id) == view.end()){
+        view.insert(id);
+        num_nodes = (int)view.size();
+    }
+
+    for(const int& elem : view){
+        if(elem == id) continue;
+
+        std::vector<MQEntry> list = prepareFaultQueue(id);
+
+        NewNodeMessage *nnm = new NewNodeMessage();
+        nnm->setMex_type(MEXTYPE_NEWNODE);
+        nnm->setSender_id(id);
+        nnm->setNew_node_id(id);
+        nnm->setQueueArraySize(list.size());
+        for(int i=0; i<(int)list.size(); i++){
+            nnm->setQueue(i, list[i]);
+        }
+
+        send(nnm,"out",id_to_channel(elem,id));
+    }
+    return;
+}
+
 void Node::send_hb(Message *hb_msg){
 
-    scheduleAt(simTime()+ HEARTBEAT_PERIOD,hb_msg);
+    scheduleAt(next_hb_time(),hb_msg);
 
     if(node_state == NODESTATE_CRASHED){
         return;
@@ -912,6 +962,27 @@ void Node::handleMessage(cMessage *t_msg){
         return;
     }
 
+    if(gm->getMex_type() == MEXTYPE_NEWNODE){
+        NewNodeMessage *nnm = (NewNodeMessage*) gm;
+        handleNewNodeS1Message(nnm);
+        return;
+    }
+    if(gm->getMex_type() == MEXTYPE_NNSTAGE2){
+        NewNodeMessage *nnm = (NewNodeMessage*) gm;
+        handleNewNodeS2Message(nnm);
+        return;
+    }
+
+    //Handle if Sender is not in the view
+    if(view.find(gm->getSender_id()) == view.end()){
+        OldNodeMessage *onm = new OldNodeMessage();
+        onm->setMex_type(MEXTYPE_OLDNODE);
+        onm->setSender_id(id);
+        send(onm,"out",id_to_channel(gm->getSender_id(),id));
+        delete gm;
+        return;
+    }
+
     if(gm->getMex_type() == MEXTYPE_STD){
         Message *m = (Message*) gm;
         handleStdMessage(m);
@@ -942,19 +1013,14 @@ void Node::handleMessage(cMessage *t_msg){
         handle_fault_stage2_message(fm);
         return;
     }
-    if(gm->getMex_type() == MEXTYPE_NEWNODE){
-        NewNodeMessage *nnm = (NewNodeMessage*) gm;
-        handleNewNodeS1Message(nnm);
-        return;
-    }
-    if(gm->getMex_type() == MEXTYPE_NNSTAGE2){
-        NewNodeMessage *nnm = (NewNodeMessage*) gm;
-        handleNewNodeS2Message(nnm);
-        return;
-    }
     if(gm->getMex_type() == MEXTYPE_RECOVERYINFO){
         NewNodeMessage *nnm = (NewNodeMessage*) gm;
         handleNewNodeInfoMessage(nnm);
+        return;
+    }
+    if(gm->getMex_type() == MEXTYPE_OLDNODE){
+        OldNodeMessage *nnm = (OldNodeMessage*) gm;
+        handle_oldnode_message(nnm);
         return;
     }
 
@@ -995,15 +1061,15 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
 void Node::handleParameterChange(const char *parname) {
     if (strcmp(parname, "alive") == 0) {
         if(par("alive").boolValue()){
+            getDisplayString().setTagArg("i", 1, "white");
             if(node_state == NODESTATE_CRASHED){
                 revive();
-            }else{
-                set_std_state();
             }
             return;
         }else{
             bubble("CRASHED :(");
             node_state = NODESTATE_CRASHED;
+            getDisplayString().setTagArg("i", 1, "red");
         }
     }
 

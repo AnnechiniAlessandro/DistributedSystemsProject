@@ -8,6 +8,8 @@
 // 6) Failure stage 2
 // 7) New Node Message
 // 8) New Node Message Stage 2
+// 9) New Node Message Stage 2 (recovery info)
+//10) Old Node (a node has been excluded from the view)
 // ...
 
 class MQEntry{
@@ -47,3 +49,5 @@ message NewNodeMessage extends GenericMessage{
 message NewNodeStage2Message extends NewNodeMessage{}
 
 message NewNodeInfoMessage extends NewNodeMessage{}
+
+message OldNodeMessage extends GenericMessage{}
