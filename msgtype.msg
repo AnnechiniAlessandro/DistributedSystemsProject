@@ -27,23 +27,26 @@ message Message extends GenericMessage{
     int l_id;
     int l_clock;
     string text;
+    int last_cid[];
+    int last_cclock[];
 }
 
 message FaultMessage extends GenericMessage{
-    int fault_id;
     int fault_node;
     MQEntry queue[];
 }
 
-message HBAckMessage extends Message{
-    int last_l_id;
-    int last_l_clock;
-}
+message AckMessage extends Message{ }
+
+message HBMessage extends Message{ }
+
+message HBAckMessage extends Message{ }
 
 message NewNodeMessage extends GenericMessage{
     int new_node_id;
     int new_hb_next_id;
     MQEntry queue[];
+    int new_view[];
 }
 
 message NewNodeStage2Message extends NewNodeMessage{}

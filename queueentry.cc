@@ -7,6 +7,7 @@
 #include "msgtype_m.h"
 
 class QueueEntry{
+
 public:
     int l_id;
     int l_clock;

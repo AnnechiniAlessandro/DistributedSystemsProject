@@ -20,6 +20,8 @@ class MQEntry;
 class GenericMessage;
 class Message;
 class FaultMessage;
+class AckMessage;
+class HBMessage;
 class HBAckMessage;
 class NewNodeMessage;
 class NewNodeStage2Message;
@@ -116,6 +118,8 @@ inline void doParsimUnpacking(omnetpp::cCommBuffer *b, GenericMessage& obj) {obj
  *     int l_id;
  *     int l_clock;
  *     string text;
+ *     int last_cid[];
+ *     int last_cclock[];
  * }
  * </pre>
  */
@@ -125,6 +129,10 @@ class Message : public ::GenericMessage
     int l_id = 0;
     int l_clock = 0;
     omnetpp::opp_string text;
+    int *last_cid = nullptr;
+    size_t last_cid_arraysize = 0;
+    int *last_cclock = nullptr;
+    size_t last_cclock_arraysize = 0;
 
   private:
     void copy(const Message& other);
@@ -149,17 +157,34 @@ class Message : public ::GenericMessage
 
     virtual const char * getText() const;
     virtual void setText(const char * text);
+
+    virtual void setLast_cidArraySize(size_t size);
+    virtual size_t getLast_cidArraySize() const;
+    virtual int getLast_cid(size_t k) const;
+    virtual void setLast_cid(size_t k, int last_cid);
+    virtual void insertLast_cid(size_t k, int last_cid);
+    [[deprecated]] void insertLast_cid(int last_cid) {appendLast_cid(last_cid);}
+    virtual void appendLast_cid(int last_cid);
+    virtual void eraseLast_cid(size_t k);
+
+    virtual void setLast_cclockArraySize(size_t size);
+    virtual size_t getLast_cclockArraySize() const;
+    virtual int getLast_cclock(size_t k) const;
+    virtual void setLast_cclock(size_t k, int last_cclock);
+    virtual void insertLast_cclock(size_t k, int last_cclock);
+    [[deprecated]] void insertLast_cclock(int last_cclock) {appendLast_cclock(last_cclock);}
+    virtual void appendLast_cclock(int last_cclock);
+    virtual void eraseLast_cclock(size_t k);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const Message& obj) {obj.parsimPack(b);}
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, Message& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:32</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:34</tt> by opp_msgtool.
  * <pre>
  * message FaultMessage extends GenericMessage
  * {
- *     int fault_id;
  *     int fault_node;
  *     MQEntry queue[];
  * }
@@ -168,7 +193,6 @@ inline void doParsimUnpacking(omnetpp::cCommBuffer *b, Message& obj) {obj.parsim
 class FaultMessage : public ::GenericMessage
 {
   protected:
-    int fault_id = 0;
     int fault_node = 0;
     MQEntry *queue = nullptr;
     size_t queue_arraysize = 0;
@@ -188,9 +212,6 @@ class FaultMessage : public ::GenericMessage
     virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
     virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
-    virtual int getFault_id() const;
-    virtual void setFault_id(int fault_id);
-
     virtual int getFault_node() const;
     virtual void setFault_node(int fault_node);
 
@@ -209,20 +230,78 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const FaultMessage& obj) {o
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, FaultMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:38</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:39</tt> by opp_msgtool.
+ * <pre>
+ * message AckMessage extends Message
+ * {
+ * }
+ * </pre>
+ */
+class AckMessage : public ::Message
+{
+  protected:
+
+  private:
+    void copy(const AckMessage& other);
+
+  protected:
+    bool operator==(const AckMessage&) = delete;
+
+  public:
+    AckMessage(const char *name=nullptr, short kind=0);
+    AckMessage(const AckMessage& other);
+    virtual ~AckMessage();
+    AckMessage& operator=(const AckMessage& other);
+    virtual AckMessage *dup() const override {return new AckMessage(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
+};
+
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const AckMessage& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, AckMessage& obj) {obj.parsimUnpack(b);}
+
+/**
+ * Class generated from <tt>msgtype.msg:41</tt> by opp_msgtool.
+ * <pre>
+ * message HBMessage extends Message
+ * {
+ * }
+ * </pre>
+ */
+class HBMessage : public ::Message
+{
+  protected:
+
+  private:
+    void copy(const HBMessage& other);
+
+  protected:
+    bool operator==(const HBMessage&) = delete;
+
+  public:
+    HBMessage(const char *name=nullptr, short kind=0);
+    HBMessage(const HBMessage& other);
+    virtual ~HBMessage();
+    HBMessage& operator=(const HBMessage& other);
+    virtual HBMessage *dup() const override {return new HBMessage(*this);}
+    virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
+    virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
+};
+
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const HBMessage& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, HBMessage& obj) {obj.parsimUnpack(b);}
+
+/**
+ * Class generated from <tt>msgtype.msg:43</tt> by opp_msgtool.
  * <pre>
  * message HBAckMessage extends Message
  * {
- *     int last_l_id;
- *     int last_l_clock;
  * }
  * </pre>
  */
 class HBAckMessage : public ::Message
 {
   protected:
-    int last_l_id = 0;
-    int last_l_clock = 0;
 
   private:
     void copy(const HBAckMessage& other);
@@ -238,25 +317,20 @@ class HBAckMessage : public ::Message
     virtual HBAckMessage *dup() const override {return new HBAckMessage(*this);}
     virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
     virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
-
-    virtual int getLast_l_id() const;
-    virtual void setLast_l_id(int last_l_id);
-
-    virtual int getLast_l_clock() const;
-    virtual void setLast_l_clock(int last_l_clock);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const HBAckMessage& obj) {obj.parsimPack(b);}
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, HBAckMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:43</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:45</tt> by opp_msgtool.
  * <pre>
  * message NewNodeMessage extends GenericMessage
  * {
  *     int new_node_id;
  *     int new_hb_next_id;
  *     MQEntry queue[];
+ *     int new_view[];
  * }
  * </pre>
  */
@@ -267,6 +341,8 @@ class NewNodeMessage : public ::GenericMessage
     int new_hb_next_id = 0;
     MQEntry *queue = nullptr;
     size_t queue_arraysize = 0;
+    int *new_view = nullptr;
+    size_t new_view_arraysize = 0;
 
   private:
     void copy(const NewNodeMessage& other);
@@ -298,13 +374,22 @@ class NewNodeMessage : public ::GenericMessage
     [[deprecated]] void insertQueue(const MQEntry& queue) {appendQueue(queue);}
     virtual void appendQueue(const MQEntry& queue);
     virtual void eraseQueue(size_t k);
+
+    virtual void setNew_viewArraySize(size_t size);
+    virtual size_t getNew_viewArraySize() const;
+    virtual int getNew_view(size_t k) const;
+    virtual void setNew_view(size_t k, int new_view);
+    virtual void insertNew_view(size_t k, int new_view);
+    [[deprecated]] void insertNew_view(int new_view) {appendNew_view(new_view);}
+    virtual void appendNew_view(int new_view);
+    virtual void eraseNew_view(size_t k);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeMessage& obj) {obj.parsimPack(b);}
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:49</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:52</tt> by opp_msgtool.
  * <pre>
  * message NewNodeStage2Message extends NewNodeMessage
  * {
@@ -335,7 +420,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeStage2Message&
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeStage2Message& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:51</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:54</tt> by opp_msgtool.
  * <pre>
  * message NewNodeInfoMessage extends NewNodeMessage
  * {
@@ -366,7 +451,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeInfoMessage& o
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeInfoMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:53</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:56</tt> by opp_msgtool.
  * <pre>
  * message OldNodeMessage extends GenericMessage
  * {
@@ -404,6 +489,8 @@ template<> inline MQEntry *fromAnyPtr(any_ptr ptr) { return ptr.get<MQEntry>(); 
 template<> inline GenericMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<GenericMessage*>(ptr.get<cObject>()); }
 template<> inline Message *fromAnyPtr(any_ptr ptr) { return check_and_cast<Message*>(ptr.get<cObject>()); }
 template<> inline FaultMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<FaultMessage*>(ptr.get<cObject>()); }
+template<> inline AckMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<AckMessage*>(ptr.get<cObject>()); }
+template<> inline HBMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<HBMessage*>(ptr.get<cObject>()); }
 template<> inline HBAckMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<HBAckMessage*>(ptr.get<cObject>()); }
 template<> inline NewNodeMessage *fromAnyPtr(any_ptr ptr) { return check_and_cast<NewNodeMessage*>(ptr.get<cObject>()); }
 template<> inline NewNodeStage2Message *fromAnyPtr(any_ptr ptr) { return check_and_cast<NewNodeStage2Message*>(ptr.get<cObject>()); }
