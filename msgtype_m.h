@@ -328,9 +328,7 @@ inline void doParsimUnpacking(omnetpp::cCommBuffer *b, HBAckMessage& obj) {obj.p
  * message NewNodeMessage extends GenericMessage
  * {
  *     int new_node_id;
- *     int new_hb_next_id;
  *     MQEntry queue[];
- *     int new_view[];
  * }
  * </pre>
  */
@@ -338,11 +336,8 @@ class NewNodeMessage : public ::GenericMessage
 {
   protected:
     int new_node_id = 0;
-    int new_hb_next_id = 0;
     MQEntry *queue = nullptr;
     size_t queue_arraysize = 0;
-    int *new_view = nullptr;
-    size_t new_view_arraysize = 0;
 
   private:
     void copy(const NewNodeMessage& other);
@@ -362,9 +357,6 @@ class NewNodeMessage : public ::GenericMessage
     virtual int getNew_node_id() const;
     virtual void setNew_node_id(int new_node_id);
 
-    virtual int getNew_hb_next_id() const;
-    virtual void setNew_hb_next_id(int new_hb_next_id);
-
     virtual void setQueueArraySize(size_t size);
     virtual size_t getQueueArraySize() const;
     virtual const MQEntry& getQueue(size_t k) const;
@@ -374,22 +366,13 @@ class NewNodeMessage : public ::GenericMessage
     [[deprecated]] void insertQueue(const MQEntry& queue) {appendQueue(queue);}
     virtual void appendQueue(const MQEntry& queue);
     virtual void eraseQueue(size_t k);
-
-    virtual void setNew_viewArraySize(size_t size);
-    virtual size_t getNew_viewArraySize() const;
-    virtual int getNew_view(size_t k) const;
-    virtual void setNew_view(size_t k, int new_view);
-    virtual void insertNew_view(size_t k, int new_view);
-    [[deprecated]] void insertNew_view(int new_view) {appendNew_view(new_view);}
-    virtual void appendNew_view(int new_view);
-    virtual void eraseNew_view(size_t k);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeMessage& obj) {obj.parsimPack(b);}
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:52</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:50</tt> by opp_msgtool.
  * <pre>
  * message NewNodeStage2Message extends NewNodeMessage
  * {
@@ -420,16 +403,24 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeStage2Message&
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeStage2Message& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:54</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:52</tt> by opp_msgtool.
  * <pre>
  * message NewNodeInfoMessage extends NewNodeMessage
  * {
+ *     int new_hb_next_id;
+ *     MQEntry restore[];
+ *     int new_view[];
  * }
  * </pre>
  */
 class NewNodeInfoMessage : public ::NewNodeMessage
 {
   protected:
+    int new_hb_next_id = 0;
+    MQEntry *restore = nullptr;
+    size_t restore_arraysize = 0;
+    int *new_view = nullptr;
+    size_t new_view_arraysize = 0;
 
   private:
     void copy(const NewNodeInfoMessage& other);
@@ -445,13 +436,35 @@ class NewNodeInfoMessage : public ::NewNodeMessage
     virtual NewNodeInfoMessage *dup() const override {return new NewNodeInfoMessage(*this);}
     virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
     virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
+
+    virtual int getNew_hb_next_id() const;
+    virtual void setNew_hb_next_id(int new_hb_next_id);
+
+    virtual void setRestoreArraySize(size_t size);
+    virtual size_t getRestoreArraySize() const;
+    virtual const MQEntry& getRestore(size_t k) const;
+    virtual MQEntry& getRestoreForUpdate(size_t k) { return const_cast<MQEntry&>(const_cast<NewNodeInfoMessage*>(this)->getRestore(k));}
+    virtual void setRestore(size_t k, const MQEntry& restore);
+    virtual void insertRestore(size_t k, const MQEntry& restore);
+    [[deprecated]] void insertRestore(const MQEntry& restore) {appendRestore(restore);}
+    virtual void appendRestore(const MQEntry& restore);
+    virtual void eraseRestore(size_t k);
+
+    virtual void setNew_viewArraySize(size_t size);
+    virtual size_t getNew_viewArraySize() const;
+    virtual int getNew_view(size_t k) const;
+    virtual void setNew_view(size_t k, int new_view);
+    virtual void insertNew_view(size_t k, int new_view);
+    [[deprecated]] void insertNew_view(int new_view) {appendNew_view(new_view);}
+    virtual void appendNew_view(int new_view);
+    virtual void eraseNew_view(size_t k);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeInfoMessage& obj) {obj.parsimPack(b);}
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeInfoMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:56</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:58</tt> by opp_msgtool.
  * <pre>
  * message OldNodeMessage extends GenericMessage
  * {

@@ -44,13 +44,15 @@ message HBAckMessage extends Message{ }
 
 message NewNodeMessage extends GenericMessage{
     int new_node_id;
-    int new_hb_next_id;
     MQEntry queue[];
-    int new_view[];
 }
 
 message NewNodeStage2Message extends NewNodeMessage{}
 
-message NewNodeInfoMessage extends NewNodeMessage{}
+message NewNodeInfoMessage extends NewNodeMessage{
+	int new_hb_next_id;
+	MQEntry restore[];
+	int new_view[];
+}
 
 message OldNodeMessage extends GenericMessage{}

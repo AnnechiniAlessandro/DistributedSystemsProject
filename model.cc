@@ -22,9 +22,9 @@
 #define MEXTYPE_HB 3
 #define MEXTYPE_HB_ACK 4
 #define MEXTYPE_FAULT 5
-#define MEXTYPE_FSTAGE2 6
+//#define MEXTYPE_FSTAGE2 6
 #define MEXTYPE_NEWNODE 7
-#define MEXTYPE_NNSTAGE2 8
+//#define MEXTYPE_NNSTAGE2 8
 #define MEXTYPE_RECOVERYINFO 9
 #define MEXTYPE_OLDNODE 10
 //...
@@ -84,17 +84,12 @@ class Node : public cSimpleModule
 
     std::vector<Message*> committed_msgs;
 
-    //TODO remove
-    //std::vector<Message*> restoreQueue;
-    //int last_committed_id;
-    //int last_committed_l_clock;
-
     std::vector<std::vector<Message*>> restoreQueues;
     std::vector<int> last_committed_id_vector;
     std::vector<int> last_committed_l_clock_vector;
 
     //Buffered recovery message
-    NewNodeMessage *buffered_nnm;
+    std::vector<NewNodeMessage*> buffered_nnm;
 
   protected:
     virtual void initialize() override;
@@ -117,17 +112,17 @@ class Node : public cSimpleModule
     virtual void fault_detected();
     virtual void handle_fault_message(FaultMessage *fm);
     virtual void handle_oldnode_message(OldNodeMessage *m);
-    virtual void handle_fault_stage2_message(FaultMessage *fm);
+    //virtual void handle_fault_stage2_message(FaultMessage *fm);
     virtual void handleNewNodeS1Message(NewNodeMessage *m);
-    virtual void handleNewNodeS2Message(NewNodeMessage *m);
-    virtual void handleNewNodeInfoMessage(NewNodeMessage *m);
+    //virtual void handleNewNodeS2Message(NewNodeMessage *m);
+    virtual void handleNewNodeInfoMessage(NewNodeInfoMessage *m);
     virtual std::vector<MQEntry> prepareFaultQueue(int failed_node);
     virtual std::vector<MQEntry> prepareNewNodeQueue();
     virtual void handleParameterChange(const char *parname) override;
     virtual void finish() override;
 
   public:
-    Node():queue(),view(),committed_msgs(),stage1(),stage2(),stage1_nn(),stage2_nn(),original_view(){ }
+    Node():queue(),view(),committed_msgs(),stage1(),stage2(),stage1_nn(),stage2_nn(),original_view(),buffered_nnm(){ }
 };
 
 Define_Module(Node);
@@ -164,7 +159,7 @@ void Node::initialize(){
     still_alive_neighbour = true;
     node_state = NODESTATE_STD;
 
-    buffered_nnm = nullptr;
+    //buffered_nnm = nullptr;
 }
 
 void Node::setMsgLastCommittedVector(Message *msg){
@@ -218,7 +213,7 @@ std::vector<MQEntry> Node::prepareFaultQueue(int failed_node){
     for(int i = 0; i<(int)queue.size(); i++){
         MQEntry mqe = MQEntry();
         if(queue[i].msg != nullptr && queue[i].l_id == failed_node){
-            queue[i].acks.insert(view.begin(), view.end());
+            queue[i].acks.insert(original_view.begin(), original_view.end());
             mqe.setL_id(queue[i].l_id);
             mqe.setL_clock(queue[i].l_clock);
             mqe.setText(queue[i].msg->getText());
@@ -233,7 +228,7 @@ std::vector<MQEntry> Node::prepareNewNodeQueue(){
     for(int i = 0; i<(int)queue.size(); i++){
         MQEntry mqe = MQEntry();
         if(queue[i].msg != nullptr){
-            queue[i].acks.insert(view.begin(), view.end());
+            queue[i].acks.insert(original_view.begin(), original_view.end());
             mqe.setL_id(queue[i].l_id);
             mqe.setL_clock(queue[i].l_clock);
             mqe.setText(queue[i].msg->getText());
@@ -331,7 +326,7 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
     //If the fault was not detected yet, trigger the Fault protocol first
     if(view.find(m->getNew_node_id()) != view.end() && node_state == NODESTATE_STD){
 
-        buffered_nnm = m;
+        buffered_nnm.push_back(m);
         if(m->getNew_node_id() == hb_next_id){
             fault_detected();
         }
@@ -341,7 +336,7 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
 
     //If the fault has already been detected, wait for the Fault protocol to finish
     if(node_state == NODESTATE_FAULT){
-        buffered_nnm = m;
+        buffered_nnm.push_back(m);
         return;
     }
 
@@ -383,29 +378,59 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
 
             std::vector<MQEntry> list = prepareNewNodeQueue();
 
-            NewNodeMessage *nnm = new NewNodeMessage();
-            nnm->setMex_type(MEXTYPE_NEWNODE);
 
-            nnm->setQueueArraySize(list.size());
-            for(int i=0; i<(int)list.size(); i++){
-                nnm->setQueue(i, list[i]);
-            }
-
-            nnm->setSender_id(id);
-            nnm->setNew_node_id(m->getNew_node_id());
 
             if(prev_hop == id && elem == m->getNew_node_id()){
+
+                NewNodeInfoMessage *nnm = new NewNodeInfoMessage();
+                nnm->setMex_type(MEXTYPE_RECOVERYINFO);
+
+                nnm->setQueueArraySize(list.size());
+                for(int i=0; i<(int)list.size(); i++){
+                    nnm->setQueue(i, list[i]);
+                }
+
+                nnm->setSender_id(id);
+                nnm->setNew_node_id(m->getNew_node_id());
+
                 nnm->setNew_viewArraySize(view.size());
                 int put = 0;
                 for(const int& el : view){
                     nnm->setNew_view(put,el);
                     put++;
                 }
-            }else{
-                nnm->setNew_viewArraySize(0);
-            }
 
-            send(nnm,"out",id_to_channel(elem,id));
+                nnm->setNew_hb_next_id(hb_next_id);
+
+                hb_next_id = m->getNew_node_id();
+                hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
+
+                nnm->setQueueArraySize(restoreQueues[m->getNew_node_id()].size());
+                for(int i=0; i<(int)restoreQueues[m->getNew_node_id()].size(); i++){
+                    MQEntry mqe = MQEntry();
+                    mqe.setL_id(restoreQueues[m->getNew_node_id()][i]->getL_id());
+                    mqe.setL_clock(restoreQueues[m->getNew_node_id()][i]->getL_clock());
+                    mqe.setText(restoreQueues[m->getNew_node_id()][i]->getText());
+                    nnm->setQueue(i, mqe);
+                }
+
+                send(nnm,"out",id_to_channel(elem,id));
+
+            }else{
+
+                NewNodeMessage *nnm = new NewNodeMessage();
+                nnm->setMex_type(MEXTYPE_NEWNODE);
+
+                nnm->setQueueArraySize(list.size());
+                for(int i=0; i<(int)list.size(); i++){
+                    nnm->setQueue(i, list[i]);
+                }
+
+                nnm->setSender_id(id);
+                nnm->setNew_node_id(m->getNew_node_id());
+
+                send(nnm,"out",id_to_channel(elem,id));
+            }
         }
     }else{
 
@@ -430,6 +455,7 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         mergeQueues(otherQueue);
     }
 
+    /*
     if(m->getNew_node_id() == id && m->getNew_viewArraySize()>0){
         view.clear();
         for(int i=0; i<(int)m->getNew_viewArraySize()>0; i++){
@@ -437,9 +463,14 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         }
         num_nodes = (int)view.size();
     }
+    */
 
     //Check for stage 1 completion
     if(std::includes(stage1_nn.begin(),stage1_nn.end(),view.begin(),view.end())){
+
+        set_std_state();
+
+        /*
 
         stage2_nn.insert(id);
 
@@ -451,7 +482,7 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         if(prev_hop == id){
 
             //TODO send recovery info
-            NewNodeMessage *nnm = new NewNodeInfoMessage();
+            NewNodeInfoMessage *nnm = new NewNodeInfoMessage();
             nnm->setMex_type(MEXTYPE_RECOVERYINFO);
             nnm->setSender_id(id);
             nnm->setNew_node_id(m->getNew_node_id());
@@ -495,12 +526,15 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         if(std::includes(stage2_nn.begin(),stage2_nn.end(),view.begin(),view.end())){
             set_std_state();
         }
+
+        */
     }
 
     delete m;
 
 }
 
+/*
 void Node::handleNewNodeS2Message(NewNodeMessage *m){
 
     if(node_state == NODESTATE_CRASHED){
@@ -518,13 +552,49 @@ void Node::handleNewNodeS2Message(NewNodeMessage *m){
     delete m;
 
 }
+*/
 
-void Node::handleNewNodeInfoMessage(NewNodeMessage *m){
+void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
 
     if(node_state == NODESTATE_CRASHED){
         delete m;
         return;
     }
+
+    view.clear();
+    for(int i=0; i<(int)m->getNew_viewArraySize()>0; i++){
+        view.insert(m->getNew_view(i));
+    }
+    num_nodes = (int)view.size();
+
+    stage1_nn.insert(m->getSender_id());
+
+    std::vector<QueueEntry> otherQueue = std::vector<QueueEntry>();
+    for(int i=0; i<(int)m->getQueueArraySize(); i++){
+        Message *qm = new Message();
+        qm->setMex_type(MEXTYPE_STD);
+        qm->setText(m->getQueue(i).getText());
+        qm->setSender_id(m->getSender_id());
+        qm->setL_id(m->getQueue(i).getL_id());
+        qm->setL_clock(m->getQueue(i).getL_clock());
+
+        QueueEntry qe = QueueEntry();
+        qe.setMsg(qm);
+        for(const int& elem : view){
+            qe.acks.insert(elem);
+        }
+        otherQueue.push_back(qe);
+    }
+    mergeQueues(otherQueue);
+
+    hb_next_id = m->getNew_hb_next_id();
+    hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
+
+    if(std::includes(stage1_nn.begin(),stage1_nn.end(),view.begin(),view.end())){
+        set_std_state();
+    }
+
+    /*
 
     stage2_nn.insert(m->getSender_id());
 
@@ -554,6 +624,8 @@ void Node::handleNewNodeInfoMessage(NewNodeMessage *m){
         set_std_state();
     }
 
+    */
+
     delete m;
 
 }
@@ -574,15 +646,15 @@ void Node::fault_detected(){
         hb_next_id = id;
         //hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
 
-        if(buffered_nnm == nullptr){
-            set_std_state();
-        }else{
-            set_std_state();
-            NewNodeMessage *nnm = buffered_nnm;
-            buffered_nnm = nullptr;
+        set_std_state();
+
+        while(buffered_nnm.size() > 0){
+            NewNodeMessage *nnm = buffered_nnm[0];
+            buffered_nnm.erase(buffered_nnm.begin());
             handleNewNodeS1Message(nnm);
         }
         return;
+
     }
 
     hb_next_id = (hb_next_id+1)%original_num_nodes;
@@ -615,6 +687,7 @@ void Node::fault_detected(){
     return;
 }
 
+/*
 void Node::handle_fault_stage2_message(FaultMessage *fm){
 
     if(node_state == NODESTATE_CRASHED){
@@ -651,6 +724,7 @@ void Node::handle_fault_stage2_message(FaultMessage *fm){
     delete fm;
 
 }
+*/
 
 void Node::handle_fault_message(FaultMessage *fm){
 
@@ -721,6 +795,15 @@ void Node::handle_fault_message(FaultMessage *fm){
     //Check for stage 1 completion
     if(std::includes(stage1.begin(),stage1.end(),view.begin(),view.end())){
 
+        set_std_state();
+
+        while(buffered_nnm.size() > 0){
+            NewNodeMessage *nnm = buffered_nnm[0];
+            buffered_nnm.erase(buffered_nnm.begin());
+            handleNewNodeS1Message(nnm);
+        }
+
+        /*
         stage2.insert(id);
         for(const int& elem : view){
             if(elem == id) continue;
@@ -743,6 +826,7 @@ void Node::handle_fault_message(FaultMessage *fm){
                 handleNewNodeS1Message(nnm);
             }
         }
+        */
 
     }
 
@@ -942,30 +1026,31 @@ void Node::handleStdMessage(Message *m){
         queue.push_back(newqe);
         std::push_heap(queue.begin(),queue.end(),is_after_qe);
 
-        //SEND ACKS TO OTHER NODES
-        l_clock++;
-        for (const int& elem : view) {
-            if(elem != id){
-
-                Message *ack = new AckMessage();
-                ack->setL_clock(m->getL_clock());
-                ack->setL_id(m->getL_id());
-                ack->setMex_type(MEXTYPE_ACK);
-                ack->setSender_id(id);
-                ack->setText("ACK");
-
-                setMsgLastCommittedVector(ack);
-
-                send(ack,"out",id_to_channel(elem,id));
-            }
-        }
-
     }else{
         //UPDATE MESSAGE IN QUEUE
         qe->setMsg(m);
     }
 
-    checkTopMessage();
+    //SEND ACKS TO OTHER NODES
+    l_clock++;
+    for (const int& elem : view) {
+        if(elem != id){
+
+            Message *ack = new AckMessage();
+            ack->setL_clock(m->getL_clock());
+            ack->setL_id(m->getL_id());
+            ack->setMex_type(MEXTYPE_ACK);
+            ack->setSender_id(id);
+            ack->setText("ACK");
+
+            setMsgLastCommittedVector(ack);
+
+            send(ack,"out",id_to_channel(elem,id));
+        }
+    }
+
+    if(node_state == NODESTATE_STD)
+        checkTopMessage();
 
     return;
 }
@@ -973,11 +1058,6 @@ void Node::handleStdMessage(Message *m){
 void Node::handleAckMessage(Message *m){
 
     if(node_state == NODESTATE_CRASHED){
-        delete m;
-        return;
-    }
-
-    if(node_state == NODESTATE_NEWNODE){
         delete m;
         return;
     }
@@ -995,20 +1075,24 @@ void Node::handleAckMessage(Message *m){
     }
 
     if(qe == nullptr){
-        //INSERT (empty) MESSAGE IN QUEUE
-        QueueEntry newqe = QueueEntry();
-        newqe.setMsg(nullptr);
-        newqe.l_clock = m->getL_clock();
-        newqe.l_id = m->getL_id();
 
-        //Add own ack AND sender ack
-        newqe.acks.insert(id);
-        newqe.acks.insert(m->getSender_id());
+        if(is_after_id(m->getL_clock(),m->getL_id(),last_committed_l_clock_vector[id],last_committed_id_vector[id])){
+            //INSERT (empty) MESSAGE IN QUEUE
+            QueueEntry newqe = QueueEntry();
+            newqe.setMsg(nullptr);
+            newqe.l_clock = m->getL_clock();
+            newqe.l_id = m->getL_id();
 
-        queue.push_back(newqe);
-        std::push_heap(queue.begin(),queue.end(),is_after_qe);
+            //Add own ack AND sender ack
+            newqe.acks.insert(id);
+            newqe.acks.insert(m->getSender_id());
+
+            queue.push_back(newqe);
+            std::push_heap(queue.begin(),queue.end(),is_after_qe);
+        }
 
         //SEND ACKS TO OTHER NODES
+        /*
         l_clock++;
         for (const int& elem : view) {
             if(elem != id){
@@ -1025,19 +1109,14 @@ void Node::handleAckMessage(Message *m){
                 send(ack,"out",id_to_channel(elem,id));
             }
         }
+        */
     }else{
         //UPDATE ACK LIST
         qe->acks.insert(m->getSender_id());
     }
 
-    checkTopMessage();
-
-    char aaaa[1024];
-    sprintf(aaaa,"BBBB ");
-    for(int k=0; k<(int)queue.size(); k++){
-        sprintf(aaaa,"%s (%d,%d) ",aaaa,queue[k].l_id,queue[k].l_clock);
-    }
-    bubble(aaaa);
+    if(node_state == NODESTATE_STD)
+        checkTopMessage();
 
     delete m;
     return;
@@ -1109,11 +1188,13 @@ void Node::handleMessage(cMessage *t_msg){
         handleNewNodeS1Message(nnm);
         return;
     }
+    /*
     if(gm->getMex_type() == MEXTYPE_NNSTAGE2){
         NewNodeMessage *nnm = (NewNodeMessage*) gm;
         handleNewNodeS2Message(nnm);
         return;
     }
+    */
 
     //Handle if Sender is not in the view
     if(view.find(gm->getSender_id()) == view.end()){
@@ -1150,13 +1231,15 @@ void Node::handleMessage(cMessage *t_msg){
         handle_fault_message(fm);
         return;
     }
+    /*
     if(gm->getMex_type() == MEXTYPE_FSTAGE2){
         FaultMessage *fm = (FaultMessage*) gm;
         handle_fault_stage2_message(fm);
         return;
     }
+    */
     if(gm->getMex_type() == MEXTYPE_RECOVERYINFO){
-        NewNodeMessage *nnm = (NewNodeMessage*) gm;
+        NewNodeInfoMessage *nnm = (NewNodeInfoMessage*) gm;
         handleNewNodeInfoMessage(nnm);
         return;
     }
@@ -1184,9 +1267,9 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
             }
 
             if(found){
-                queue[j-1].acks.insert(/*otherQueue[i].acks*/view.begin(), /*otherQueue[i].acks*/view.end()); // is the same message -> merge ack
+                queue[j-1].acks.insert(/*otherQueue[i].acks*/original_view.begin(), /*otherQueue[i].acks*/original_view.end()); // is the same message -> merge ack
                 if(queue[j-1].msg == nullptr){
-                    queue[j-1].msg = otherQueue[i].msg;
+                    queue[j-1].setMsg(otherQueue[i].msg);
                 }else{
                     if(otherQueue[i].msg!=nullptr)
                         delete otherQueue[i].msg;
@@ -1197,6 +1280,9 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
                 std::push_heap(queue.begin(),queue.end(),is_after_qe);
 
             }
+        }else{
+            if(otherQueue[i].msg!=nullptr)
+                delete otherQueue[i].msg;
         }
     }
 
@@ -1219,10 +1305,10 @@ void Node::handleParameterChange(const char *parname) {
 
     if (strcmp(parname, "new_mex") == 0) {
         if(par("new_mex").intValue() > 0){
-            if(node_state == NODESTATE_STD || node_state == NODESTATE_FAULT){
+            if(node_state == NODESTATE_STD || node_state == NODESTATE_FAULT || node_state == NODESTATE_NEWNODE){
                 l_clock++;
                 char message_text[1024];
-                sprintf(message_text,"Message N%d",rand()%100);
+                sprintf(message_text,"Message{%d,%d}",l_clock,id);
                 send_standard_message(message_text);
                 par("new_mex").setIntValue(par("new_mex").intValue()-1);
                 bubble(message_text);

@@ -2920,7 +2920,6 @@ NewNodeMessage::NewNodeMessage(const NewNodeMessage& other) : ::GenericMessage(o
 NewNodeMessage::~NewNodeMessage()
 {
     delete [] this->queue;
-    delete [] this->new_view;
 }
 
 NewNodeMessage& NewNodeMessage::operator=(const NewNodeMessage& other)
@@ -2934,18 +2933,11 @@ NewNodeMessage& NewNodeMessage::operator=(const NewNodeMessage& other)
 void NewNodeMessage::copy(const NewNodeMessage& other)
 {
     this->new_node_id = other.new_node_id;
-    this->new_hb_next_id = other.new_hb_next_id;
     delete [] this->queue;
     this->queue = (other.queue_arraysize==0) ? nullptr : new MQEntry[other.queue_arraysize];
     queue_arraysize = other.queue_arraysize;
     for (size_t i = 0; i < queue_arraysize; i++) {
         this->queue[i] = other.queue[i];
-    }
-    delete [] this->new_view;
-    this->new_view = (other.new_view_arraysize==0) ? nullptr : new int[other.new_view_arraysize];
-    new_view_arraysize = other.new_view_arraysize;
-    for (size_t i = 0; i < new_view_arraysize; i++) {
-        this->new_view[i] = other.new_view[i];
     }
 }
 
@@ -2953,18 +2945,14 @@ void NewNodeMessage::parsimPack(omnetpp::cCommBuffer *b) const
 {
     ::GenericMessage::parsimPack(b);
     doParsimPacking(b,this->new_node_id);
-    doParsimPacking(b,this->new_hb_next_id);
     b->pack(queue_arraysize);
     doParsimArrayPacking(b,this->queue,queue_arraysize);
-    b->pack(new_view_arraysize);
-    doParsimArrayPacking(b,this->new_view,new_view_arraysize);
 }
 
 void NewNodeMessage::parsimUnpack(omnetpp::cCommBuffer *b)
 {
     ::GenericMessage::parsimUnpack(b);
     doParsimUnpacking(b,this->new_node_id);
-    doParsimUnpacking(b,this->new_hb_next_id);
     delete [] this->queue;
     b->unpack(queue_arraysize);
     if (queue_arraysize == 0) {
@@ -2972,14 +2960,6 @@ void NewNodeMessage::parsimUnpack(omnetpp::cCommBuffer *b)
     } else {
         this->queue = new MQEntry[queue_arraysize];
         doParsimArrayUnpacking(b,this->queue,queue_arraysize);
-    }
-    delete [] this->new_view;
-    b->unpack(new_view_arraysize);
-    if (new_view_arraysize == 0) {
-        this->new_view = nullptr;
-    } else {
-        this->new_view = new int[new_view_arraysize];
-        doParsimArrayUnpacking(b,this->new_view,new_view_arraysize);
     }
 }
 
@@ -2991,16 +2971,6 @@ int NewNodeMessage::getNew_node_id() const
 void NewNodeMessage::setNew_node_id(int new_node_id)
 {
     this->new_node_id = new_node_id;
-}
-
-int NewNodeMessage::getNew_hb_next_id() const
-{
-    return this->new_hb_next_id;
-}
-
-void NewNodeMessage::setNew_hb_next_id(int new_hb_next_id)
-{
-    this->new_hb_next_id = new_hb_next_id;
 }
 
 size_t NewNodeMessage::getQueueArraySize() const
@@ -3067,81 +3037,13 @@ void NewNodeMessage::eraseQueue(size_t k)
     queue_arraysize = newSize;
 }
 
-size_t NewNodeMessage::getNew_viewArraySize() const
-{
-    return new_view_arraysize;
-}
-
-int NewNodeMessage::getNew_view(size_t k) const
-{
-    if (k >= new_view_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)new_view_arraysize, (unsigned long)k);
-    return this->new_view[k];
-}
-
-void NewNodeMessage::setNew_viewArraySize(size_t newSize)
-{
-    int *new_view2 = (newSize==0) ? nullptr : new int[newSize];
-    size_t minSize = new_view_arraysize < newSize ? new_view_arraysize : newSize;
-    for (size_t i = 0; i < minSize; i++)
-        new_view2[i] = this->new_view[i];
-    for (size_t i = minSize; i < newSize; i++)
-        new_view2[i] = 0;
-    delete [] this->new_view;
-    this->new_view = new_view2;
-    new_view_arraysize = newSize;
-}
-
-void NewNodeMessage::setNew_view(size_t k, int new_view)
-{
-    if (k >= new_view_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)new_view_arraysize, (unsigned long)k);
-    this->new_view[k] = new_view;
-}
-
-void NewNodeMessage::insertNew_view(size_t k, int new_view)
-{
-    if (k > new_view_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)new_view_arraysize, (unsigned long)k);
-    size_t newSize = new_view_arraysize + 1;
-    int *new_view2 = new int[newSize];
-    size_t i;
-    for (i = 0; i < k; i++)
-        new_view2[i] = this->new_view[i];
-    new_view2[k] = new_view;
-    for (i = k + 1; i < newSize; i++)
-        new_view2[i] = this->new_view[i-1];
-    delete [] this->new_view;
-    this->new_view = new_view2;
-    new_view_arraysize = newSize;
-}
-
-void NewNodeMessage::appendNew_view(int new_view)
-{
-    insertNew_view(new_view_arraysize, new_view);
-}
-
-void NewNodeMessage::eraseNew_view(size_t k)
-{
-    if (k >= new_view_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)new_view_arraysize, (unsigned long)k);
-    size_t newSize = new_view_arraysize - 1;
-    int *new_view2 = (newSize == 0) ? nullptr : new int[newSize];
-    size_t i;
-    for (i = 0; i < k; i++)
-        new_view2[i] = this->new_view[i];
-    for (i = k; i < newSize; i++)
-        new_view2[i] = this->new_view[i+1];
-    delete [] this->new_view;
-    this->new_view = new_view2;
-    new_view_arraysize = newSize;
-}
-
 class NewNodeMessageDescriptor : public omnetpp::cClassDescriptor
 {
   private:
     mutable const char **propertyNames;
     enum FieldConstants {
         FIELD_new_node_id,
-        FIELD_new_hb_next_id,
         FIELD_queue,
-        FIELD_new_view,
     };
   public:
     NewNodeMessageDescriptor();
@@ -3208,7 +3110,7 @@ const char *NewNodeMessageDescriptor::getProperty(const char *propertyName) cons
 int NewNodeMessageDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
-    return base ? 4+base->getFieldCount() : 4;
+    return base ? 2+base->getFieldCount() : 2;
 }
 
 unsigned int NewNodeMessageDescriptor::getFieldTypeFlags(int field) const
@@ -3221,11 +3123,9 @@ unsigned int NewNodeMessageDescriptor::getFieldTypeFlags(int field) const
     }
     static unsigned int fieldTypeFlags[] = {
         FD_ISEDITABLE,    // FIELD_new_node_id
-        FD_ISEDITABLE,    // FIELD_new_hb_next_id
         FD_ISARRAY | FD_ISCOMPOUND | FD_ISRESIZABLE,    // FIELD_queue
-        FD_ISARRAY | FD_ISEDITABLE | FD_ISRESIZABLE,    // FIELD_new_view
     };
-    return (field >= 0 && field < 4) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 2) ? fieldTypeFlags[field] : 0;
 }
 
 const char *NewNodeMessageDescriptor::getFieldName(int field) const
@@ -3238,11 +3138,9 @@ const char *NewNodeMessageDescriptor::getFieldName(int field) const
     }
     static const char *fieldNames[] = {
         "new_node_id",
-        "new_hb_next_id",
         "queue",
-        "new_view",
     };
-    return (field >= 0 && field < 4) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 2) ? fieldNames[field] : nullptr;
 }
 
 int NewNodeMessageDescriptor::findField(const char *fieldName) const
@@ -3250,9 +3148,7 @@ int NewNodeMessageDescriptor::findField(const char *fieldName) const
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     int baseIndex = base ? base->getFieldCount() : 0;
     if (strcmp(fieldName, "new_node_id") == 0) return baseIndex + 0;
-    if (strcmp(fieldName, "new_hb_next_id") == 0) return baseIndex + 1;
-    if (strcmp(fieldName, "queue") == 0) return baseIndex + 2;
-    if (strcmp(fieldName, "new_view") == 0) return baseIndex + 3;
+    if (strcmp(fieldName, "queue") == 0) return baseIndex + 1;
     return base ? base->findField(fieldName) : -1;
 }
 
@@ -3266,11 +3162,9 @@ const char *NewNodeMessageDescriptor::getFieldTypeString(int field) const
     }
     static const char *fieldTypeStrings[] = {
         "int",    // FIELD_new_node_id
-        "int",    // FIELD_new_hb_next_id
         "MQEntry",    // FIELD_queue
-        "int",    // FIELD_new_view
     };
-    return (field >= 0 && field < 4) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 2) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **NewNodeMessageDescriptor::getFieldPropertyNames(int field) const
@@ -3310,7 +3204,6 @@ int NewNodeMessageDescriptor::getFieldArraySize(omnetpp::any_ptr object, int fie
     NewNodeMessage *pp = omnetpp::fromAnyPtr<NewNodeMessage>(object); (void)pp;
     switch (field) {
         case FIELD_queue: return pp->getQueueArraySize();
-        case FIELD_new_view: return pp->getNew_viewArraySize();
         default: return 0;
     }
 }
@@ -3328,7 +3221,6 @@ void NewNodeMessageDescriptor::setFieldArraySize(omnetpp::any_ptr object, int fi
     NewNodeMessage *pp = omnetpp::fromAnyPtr<NewNodeMessage>(object); (void)pp;
     switch (field) {
         case FIELD_queue: pp->setQueueArraySize(size); break;
-        case FIELD_new_view: pp->setNew_viewArraySize(size); break;
         default: throw omnetpp::cRuntimeError("Cannot set array size of field %d of class 'NewNodeMessage'", field);
     }
 }
@@ -3358,9 +3250,7 @@ std::string NewNodeMessageDescriptor::getFieldValueAsString(omnetpp::any_ptr obj
     NewNodeMessage *pp = omnetpp::fromAnyPtr<NewNodeMessage>(object); (void)pp;
     switch (field) {
         case FIELD_new_node_id: return long2string(pp->getNew_node_id());
-        case FIELD_new_hb_next_id: return long2string(pp->getNew_hb_next_id());
         case FIELD_queue: return "";
-        case FIELD_new_view: return long2string(pp->getNew_view(i));
         default: return "";
     }
 }
@@ -3378,8 +3268,6 @@ void NewNodeMessageDescriptor::setFieldValueAsString(omnetpp::any_ptr object, in
     NewNodeMessage *pp = omnetpp::fromAnyPtr<NewNodeMessage>(object); (void)pp;
     switch (field) {
         case FIELD_new_node_id: pp->setNew_node_id(string2long(value)); break;
-        case FIELD_new_hb_next_id: pp->setNew_hb_next_id(string2long(value)); break;
-        case FIELD_new_view: pp->setNew_view(i,string2long(value)); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'NewNodeMessage'", field);
     }
 }
@@ -3395,9 +3283,7 @@ omnetpp::cValue NewNodeMessageDescriptor::getFieldValue(omnetpp::any_ptr object,
     NewNodeMessage *pp = omnetpp::fromAnyPtr<NewNodeMessage>(object); (void)pp;
     switch (field) {
         case FIELD_new_node_id: return pp->getNew_node_id();
-        case FIELD_new_hb_next_id: return pp->getNew_hb_next_id();
         case FIELD_queue: return omnetpp::toAnyPtr(&pp->getQueue(i)); break;
-        case FIELD_new_view: return pp->getNew_view(i);
         default: throw omnetpp::cRuntimeError("Cannot return field %d of class 'NewNodeMessage' as cValue -- field index out of range?", field);
     }
 }
@@ -3415,8 +3301,6 @@ void NewNodeMessageDescriptor::setFieldValue(omnetpp::any_ptr object, int field,
     NewNodeMessage *pp = omnetpp::fromAnyPtr<NewNodeMessage>(object); (void)pp;
     switch (field) {
         case FIELD_new_node_id: pp->setNew_node_id(omnetpp::checked_int_cast<int>(value.intValue())); break;
-        case FIELD_new_hb_next_id: pp->setNew_hb_next_id(omnetpp::checked_int_cast<int>(value.intValue())); break;
-        case FIELD_new_view: pp->setNew_view(i,omnetpp::checked_int_cast<int>(value.intValue())); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'NewNodeMessage'", field);
     }
 }
@@ -3800,6 +3684,8 @@ NewNodeInfoMessage::NewNodeInfoMessage(const NewNodeInfoMessage& other) : ::NewN
 
 NewNodeInfoMessage::~NewNodeInfoMessage()
 {
+    delete [] this->restore;
+    delete [] this->new_view;
 }
 
 NewNodeInfoMessage& NewNodeInfoMessage::operator=(const NewNodeInfoMessage& other)
@@ -3812,16 +3698,191 @@ NewNodeInfoMessage& NewNodeInfoMessage::operator=(const NewNodeInfoMessage& othe
 
 void NewNodeInfoMessage::copy(const NewNodeInfoMessage& other)
 {
+    this->new_hb_next_id = other.new_hb_next_id;
+    delete [] this->restore;
+    this->restore = (other.restore_arraysize==0) ? nullptr : new MQEntry[other.restore_arraysize];
+    restore_arraysize = other.restore_arraysize;
+    for (size_t i = 0; i < restore_arraysize; i++) {
+        this->restore[i] = other.restore[i];
+    }
+    delete [] this->new_view;
+    this->new_view = (other.new_view_arraysize==0) ? nullptr : new int[other.new_view_arraysize];
+    new_view_arraysize = other.new_view_arraysize;
+    for (size_t i = 0; i < new_view_arraysize; i++) {
+        this->new_view[i] = other.new_view[i];
+    }
 }
 
 void NewNodeInfoMessage::parsimPack(omnetpp::cCommBuffer *b) const
 {
     ::NewNodeMessage::parsimPack(b);
+    doParsimPacking(b,this->new_hb_next_id);
+    b->pack(restore_arraysize);
+    doParsimArrayPacking(b,this->restore,restore_arraysize);
+    b->pack(new_view_arraysize);
+    doParsimArrayPacking(b,this->new_view,new_view_arraysize);
 }
 
 void NewNodeInfoMessage::parsimUnpack(omnetpp::cCommBuffer *b)
 {
     ::NewNodeMessage::parsimUnpack(b);
+    doParsimUnpacking(b,this->new_hb_next_id);
+    delete [] this->restore;
+    b->unpack(restore_arraysize);
+    if (restore_arraysize == 0) {
+        this->restore = nullptr;
+    } else {
+        this->restore = new MQEntry[restore_arraysize];
+        doParsimArrayUnpacking(b,this->restore,restore_arraysize);
+    }
+    delete [] this->new_view;
+    b->unpack(new_view_arraysize);
+    if (new_view_arraysize == 0) {
+        this->new_view = nullptr;
+    } else {
+        this->new_view = new int[new_view_arraysize];
+        doParsimArrayUnpacking(b,this->new_view,new_view_arraysize);
+    }
+}
+
+int NewNodeInfoMessage::getNew_hb_next_id() const
+{
+    return this->new_hb_next_id;
+}
+
+void NewNodeInfoMessage::setNew_hb_next_id(int new_hb_next_id)
+{
+    this->new_hb_next_id = new_hb_next_id;
+}
+
+size_t NewNodeInfoMessage::getRestoreArraySize() const
+{
+    return restore_arraysize;
+}
+
+const MQEntry& NewNodeInfoMessage::getRestore(size_t k) const
+{
+    if (k >= restore_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)restore_arraysize, (unsigned long)k);
+    return this->restore[k];
+}
+
+void NewNodeInfoMessage::setRestoreArraySize(size_t newSize)
+{
+    MQEntry *restore2 = (newSize==0) ? nullptr : new MQEntry[newSize];
+    size_t minSize = restore_arraysize < newSize ? restore_arraysize : newSize;
+    for (size_t i = 0; i < minSize; i++)
+        restore2[i] = this->restore[i];
+    delete [] this->restore;
+    this->restore = restore2;
+    restore_arraysize = newSize;
+}
+
+void NewNodeInfoMessage::setRestore(size_t k, const MQEntry& restore)
+{
+    if (k >= restore_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)restore_arraysize, (unsigned long)k);
+    this->restore[k] = restore;
+}
+
+void NewNodeInfoMessage::insertRestore(size_t k, const MQEntry& restore)
+{
+    if (k > restore_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)restore_arraysize, (unsigned long)k);
+    size_t newSize = restore_arraysize + 1;
+    MQEntry *restore2 = new MQEntry[newSize];
+    size_t i;
+    for (i = 0; i < k; i++)
+        restore2[i] = this->restore[i];
+    restore2[k] = restore;
+    for (i = k + 1; i < newSize; i++)
+        restore2[i] = this->restore[i-1];
+    delete [] this->restore;
+    this->restore = restore2;
+    restore_arraysize = newSize;
+}
+
+void NewNodeInfoMessage::appendRestore(const MQEntry& restore)
+{
+    insertRestore(restore_arraysize, restore);
+}
+
+void NewNodeInfoMessage::eraseRestore(size_t k)
+{
+    if (k >= restore_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)restore_arraysize, (unsigned long)k);
+    size_t newSize = restore_arraysize - 1;
+    MQEntry *restore2 = (newSize == 0) ? nullptr : new MQEntry[newSize];
+    size_t i;
+    for (i = 0; i < k; i++)
+        restore2[i] = this->restore[i];
+    for (i = k; i < newSize; i++)
+        restore2[i] = this->restore[i+1];
+    delete [] this->restore;
+    this->restore = restore2;
+    restore_arraysize = newSize;
+}
+
+size_t NewNodeInfoMessage::getNew_viewArraySize() const
+{
+    return new_view_arraysize;
+}
+
+int NewNodeInfoMessage::getNew_view(size_t k) const
+{
+    if (k >= new_view_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)new_view_arraysize, (unsigned long)k);
+    return this->new_view[k];
+}
+
+void NewNodeInfoMessage::setNew_viewArraySize(size_t newSize)
+{
+    int *new_view2 = (newSize==0) ? nullptr : new int[newSize];
+    size_t minSize = new_view_arraysize < newSize ? new_view_arraysize : newSize;
+    for (size_t i = 0; i < minSize; i++)
+        new_view2[i] = this->new_view[i];
+    for (size_t i = minSize; i < newSize; i++)
+        new_view2[i] = 0;
+    delete [] this->new_view;
+    this->new_view = new_view2;
+    new_view_arraysize = newSize;
+}
+
+void NewNodeInfoMessage::setNew_view(size_t k, int new_view)
+{
+    if (k >= new_view_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)new_view_arraysize, (unsigned long)k);
+    this->new_view[k] = new_view;
+}
+
+void NewNodeInfoMessage::insertNew_view(size_t k, int new_view)
+{
+    if (k > new_view_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)new_view_arraysize, (unsigned long)k);
+    size_t newSize = new_view_arraysize + 1;
+    int *new_view2 = new int[newSize];
+    size_t i;
+    for (i = 0; i < k; i++)
+        new_view2[i] = this->new_view[i];
+    new_view2[k] = new_view;
+    for (i = k + 1; i < newSize; i++)
+        new_view2[i] = this->new_view[i-1];
+    delete [] this->new_view;
+    this->new_view = new_view2;
+    new_view_arraysize = newSize;
+}
+
+void NewNodeInfoMessage::appendNew_view(int new_view)
+{
+    insertNew_view(new_view_arraysize, new_view);
+}
+
+void NewNodeInfoMessage::eraseNew_view(size_t k)
+{
+    if (k >= new_view_arraysize) throw omnetpp::cRuntimeError("Array of size %lu indexed by %lu", (unsigned long)new_view_arraysize, (unsigned long)k);
+    size_t newSize = new_view_arraysize - 1;
+    int *new_view2 = (newSize == 0) ? nullptr : new int[newSize];
+    size_t i;
+    for (i = 0; i < k; i++)
+        new_view2[i] = this->new_view[i];
+    for (i = k; i < newSize; i++)
+        new_view2[i] = this->new_view[i+1];
+    delete [] this->new_view;
+    this->new_view = new_view2;
+    new_view_arraysize = newSize;
 }
 
 class NewNodeInfoMessageDescriptor : public omnetpp::cClassDescriptor
@@ -3829,6 +3890,9 @@ class NewNodeInfoMessageDescriptor : public omnetpp::cClassDescriptor
   private:
     mutable const char **propertyNames;
     enum FieldConstants {
+        FIELD_new_hb_next_id,
+        FIELD_restore,
+        FIELD_new_view,
     };
   public:
     NewNodeInfoMessageDescriptor();
@@ -3895,7 +3959,7 @@ const char *NewNodeInfoMessageDescriptor::getProperty(const char *propertyName) 
 int NewNodeInfoMessageDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
-    return base ? 0+base->getFieldCount() : 0;
+    return base ? 3+base->getFieldCount() : 3;
 }
 
 unsigned int NewNodeInfoMessageDescriptor::getFieldTypeFlags(int field) const
@@ -3906,7 +3970,12 @@ unsigned int NewNodeInfoMessageDescriptor::getFieldTypeFlags(int field) const
             return base->getFieldTypeFlags(field);
         field -= base->getFieldCount();
     }
-    return 0;
+    static unsigned int fieldTypeFlags[] = {
+        FD_ISEDITABLE,    // FIELD_new_hb_next_id
+        FD_ISARRAY | FD_ISCOMPOUND | FD_ISRESIZABLE,    // FIELD_restore
+        FD_ISARRAY | FD_ISEDITABLE | FD_ISRESIZABLE,    // FIELD_new_view
+    };
+    return (field >= 0 && field < 3) ? fieldTypeFlags[field] : 0;
 }
 
 const char *NewNodeInfoMessageDescriptor::getFieldName(int field) const
@@ -3917,12 +3986,21 @@ const char *NewNodeInfoMessageDescriptor::getFieldName(int field) const
             return base->getFieldName(field);
         field -= base->getFieldCount();
     }
-    return nullptr;
+    static const char *fieldNames[] = {
+        "new_hb_next_id",
+        "restore",
+        "new_view",
+    };
+    return (field >= 0 && field < 3) ? fieldNames[field] : nullptr;
 }
 
 int NewNodeInfoMessageDescriptor::findField(const char *fieldName) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
+    int baseIndex = base ? base->getFieldCount() : 0;
+    if (strcmp(fieldName, "new_hb_next_id") == 0) return baseIndex + 0;
+    if (strcmp(fieldName, "restore") == 0) return baseIndex + 1;
+    if (strcmp(fieldName, "new_view") == 0) return baseIndex + 2;
     return base ? base->findField(fieldName) : -1;
 }
 
@@ -3934,7 +4012,12 @@ const char *NewNodeInfoMessageDescriptor::getFieldTypeString(int field) const
             return base->getFieldTypeString(field);
         field -= base->getFieldCount();
     }
-    return nullptr;
+    static const char *fieldTypeStrings[] = {
+        "int",    // FIELD_new_hb_next_id
+        "MQEntry",    // FIELD_restore
+        "int",    // FIELD_new_view
+    };
+    return (field >= 0 && field < 3) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **NewNodeInfoMessageDescriptor::getFieldPropertyNames(int field) const
@@ -3973,6 +4056,8 @@ int NewNodeInfoMessageDescriptor::getFieldArraySize(omnetpp::any_ptr object, int
     }
     NewNodeInfoMessage *pp = omnetpp::fromAnyPtr<NewNodeInfoMessage>(object); (void)pp;
     switch (field) {
+        case FIELD_restore: return pp->getRestoreArraySize();
+        case FIELD_new_view: return pp->getNew_viewArraySize();
         default: return 0;
     }
 }
@@ -3989,6 +4074,8 @@ void NewNodeInfoMessageDescriptor::setFieldArraySize(omnetpp::any_ptr object, in
     }
     NewNodeInfoMessage *pp = omnetpp::fromAnyPtr<NewNodeInfoMessage>(object); (void)pp;
     switch (field) {
+        case FIELD_restore: pp->setRestoreArraySize(size); break;
+        case FIELD_new_view: pp->setNew_viewArraySize(size); break;
         default: throw omnetpp::cRuntimeError("Cannot set array size of field %d of class 'NewNodeInfoMessage'", field);
     }
 }
@@ -4017,6 +4104,9 @@ std::string NewNodeInfoMessageDescriptor::getFieldValueAsString(omnetpp::any_ptr
     }
     NewNodeInfoMessage *pp = omnetpp::fromAnyPtr<NewNodeInfoMessage>(object); (void)pp;
     switch (field) {
+        case FIELD_new_hb_next_id: return long2string(pp->getNew_hb_next_id());
+        case FIELD_restore: return "";
+        case FIELD_new_view: return long2string(pp->getNew_view(i));
         default: return "";
     }
 }
@@ -4033,6 +4123,8 @@ void NewNodeInfoMessageDescriptor::setFieldValueAsString(omnetpp::any_ptr object
     }
     NewNodeInfoMessage *pp = omnetpp::fromAnyPtr<NewNodeInfoMessage>(object); (void)pp;
     switch (field) {
+        case FIELD_new_hb_next_id: pp->setNew_hb_next_id(string2long(value)); break;
+        case FIELD_new_view: pp->setNew_view(i,string2long(value)); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'NewNodeInfoMessage'", field);
     }
 }
@@ -4047,6 +4139,9 @@ omnetpp::cValue NewNodeInfoMessageDescriptor::getFieldValue(omnetpp::any_ptr obj
     }
     NewNodeInfoMessage *pp = omnetpp::fromAnyPtr<NewNodeInfoMessage>(object); (void)pp;
     switch (field) {
+        case FIELD_new_hb_next_id: return pp->getNew_hb_next_id();
+        case FIELD_restore: return omnetpp::toAnyPtr(&pp->getRestore(i)); break;
+        case FIELD_new_view: return pp->getNew_view(i);
         default: throw omnetpp::cRuntimeError("Cannot return field %d of class 'NewNodeInfoMessage' as cValue -- field index out of range?", field);
     }
 }
@@ -4063,6 +4158,8 @@ void NewNodeInfoMessageDescriptor::setFieldValue(omnetpp::any_ptr object, int fi
     }
     NewNodeInfoMessage *pp = omnetpp::fromAnyPtr<NewNodeInfoMessage>(object); (void)pp;
     switch (field) {
+        case FIELD_new_hb_next_id: pp->setNew_hb_next_id(omnetpp::checked_int_cast<int>(value.intValue())); break;
+        case FIELD_new_view: pp->setNew_view(i,omnetpp::checked_int_cast<int>(value.intValue())); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'NewNodeInfoMessage'", field);
     }
 }
@@ -4075,7 +4172,10 @@ const char *NewNodeInfoMessageDescriptor::getFieldStructName(int field) const
             return base->getFieldStructName(field);
         field -= base->getFieldCount();
     }
-    return nullptr;
+    switch (field) {
+        case FIELD_restore: return omnetpp::opp_typename(typeid(MQEntry));
+        default: return nullptr;
+    };
 }
 
 omnetpp::any_ptr NewNodeInfoMessageDescriptor::getFieldStructValuePointer(omnetpp::any_ptr object, int field, int i) const
@@ -4088,6 +4188,7 @@ omnetpp::any_ptr NewNodeInfoMessageDescriptor::getFieldStructValuePointer(omnetp
     }
     NewNodeInfoMessage *pp = omnetpp::fromAnyPtr<NewNodeInfoMessage>(object); (void)pp;
     switch (field) {
+        case FIELD_restore: return omnetpp::toAnyPtr(&pp->getRestore(i)); break;
         default: return omnetpp::any_ptr(nullptr);
     }
 }
