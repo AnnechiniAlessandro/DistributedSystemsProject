@@ -71,10 +71,8 @@ class Node : public cSimpleModule
 
     //Stages sets for view change
     std::set<int> stage1;
-    std::set<int> stage2;
 
     std::set<int> stage1_nn;
-    std::set<int> stage2_nn;
 
     //Nodes in the group view
     std::set<int> view;
@@ -112,9 +110,7 @@ class Node : public cSimpleModule
     virtual void fault_detected();
     virtual void handle_fault_message(FaultMessage *fm);
     virtual void handle_oldnode_message(OldNodeMessage *m);
-    //virtual void handle_fault_stage2_message(FaultMessage *fm);
     virtual void handleNewNodeS1Message(NewNodeMessage *m);
-    //virtual void handleNewNodeS2Message(NewNodeMessage *m);
     virtual void handleNewNodeInfoMessage(NewNodeInfoMessage *m);
     virtual std::vector<MQEntry> prepareFaultQueue(int failed_node);
     virtual std::vector<MQEntry> prepareNewNodeQueue();
@@ -247,9 +243,7 @@ void Node::set_std_state(){
         still_alive_neighbour = true;
         checkTopMessage();
         stage1.clear();
-        stage2.clear();
         stage1_nn.clear();
-        stage2_nn.clear();
     }
 }
 
@@ -331,7 +325,6 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
             fault_detected();
         }
         return;
-
     }
 
     //If the fault has already been detected, wait for the Fault protocol to finish
@@ -377,8 +370,6 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
             if(elem == id) continue;
 
             std::vector<MQEntry> list = prepareNewNodeQueue();
-
-
 
             if(prev_hop == id && elem == m->getNew_node_id()){
 
@@ -455,104 +446,16 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         mergeQueues(otherQueue);
     }
 
-    /*
-    if(m->getNew_node_id() == id && m->getNew_viewArraySize()>0){
-        view.clear();
-        for(int i=0; i<(int)m->getNew_viewArraySize()>0; i++){
-            view.insert(m->getNew_view(i));
-        }
-        num_nodes = (int)view.size();
-    }
-    */
-
     //Check for stage 1 completion
     if(std::includes(stage1_nn.begin(),stage1_nn.end(),view.begin(),view.end())){
 
         set_std_state();
 
-        /*
-
-        stage2_nn.insert(id);
-
-        //Check if the node revived is the next HB hop
-        int prev_hop = (m->getNew_node_id()+original_num_nodes-1)%original_num_nodes;
-        while(view.find(prev_hop)==view.end() && prev_hop!=id)
-            prev_hop = (prev_hop+original_num_nodes-1)%original_num_nodes;
-
-        if(prev_hop == id){
-
-            //TODO send recovery info
-            NewNodeInfoMessage *nnm = new NewNodeInfoMessage();
-            nnm->setMex_type(MEXTYPE_RECOVERYINFO);
-            nnm->setSender_id(id);
-            nnm->setNew_node_id(m->getNew_node_id());
-            nnm->setNew_hb_next_id(hb_next_id);
-
-            hb_next_id = m->getNew_node_id();
-            hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
-
-            nnm->setQueueArraySize(restoreQueues[m->getNew_node_id()].size());
-            for(int i=0; i<(int)restoreQueues[m->getNew_node_id()].size(); i++){
-                MQEntry mqe = MQEntry();
-                mqe.setL_id(restoreQueues[m->getNew_node_id()][i]->getL_id());
-                mqe.setL_clock(restoreQueues[m->getNew_node_id()][i]->getL_clock());
-                mqe.setText(restoreQueues[m->getNew_node_id()][i]->getText());
-                nnm->setQueue(i, mqe);
-            }
-            send(nnm,"out",id_to_channel(m->getNew_node_id(),id));
-
-            for(const int& elem : view){
-                if(elem == id || elem == m->getNew_node_id()) continue;
-                NewNodeMessage *nnm = new NewNodeStage2Message();
-                nnm->setMex_type(MEXTYPE_NNSTAGE2);
-                nnm->setSender_id(id);
-                nnm->setNew_node_id(m->getNew_node_id());
-                nnm->setQueueArraySize(0);
-                send(nnm,"out",id_to_channel(elem,id));
-            }
-        }else{
-            for(const int& elem : view){
-                if(elem == id) continue;
-                NewNodeMessage *nnm = new NewNodeStage2Message();
-                nnm->setMex_type(MEXTYPE_NNSTAGE2);
-                nnm->setSender_id(id);
-                nnm->setNew_node_id(m->getNew_node_id());
-                nnm->setQueueArraySize(0);
-                send(nnm,"out",id_to_channel(elem,id));
-            }
-        }
-
-        //Check for stage 2 completion
-        if(std::includes(stage2_nn.begin(),stage2_nn.end(),view.begin(),view.end())){
-            set_std_state();
-        }
-
-        */
     }
 
     delete m;
 
 }
-
-/*
-void Node::handleNewNodeS2Message(NewNodeMessage *m){
-
-    if(node_state == NODESTATE_CRASHED){
-        delete m;
-        return;
-    }
-
-    stage2_nn.insert(m->getSender_id());
-
-    //Check for stage 2 completion
-    if(std::includes(stage2_nn.begin(),stage2_nn.end(),view.begin(),view.end())){
-        set_std_state();
-    }
-
-    delete m;
-
-}
-*/
 
 void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
 
@@ -594,38 +497,6 @@ void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
         set_std_state();
     }
 
-    /*
-
-    stage2_nn.insert(m->getSender_id());
-
-    std::vector<QueueEntry> otherQueue = std::vector<QueueEntry>();
-    for(int i=0; i<(int)m->getQueueArraySize(); i++){
-        Message *qm = new Message();
-        qm->setMex_type(MEXTYPE_STD);
-        qm->setText(m->getQueue(i).getText());
-        qm->setSender_id(m->getSender_id());
-        qm->setL_id(m->getQueue(i).getL_id());
-        qm->setL_clock(m->getQueue(i).getL_clock());
-
-        QueueEntry qe = QueueEntry();
-        qe.setMsg(qm);
-        for(const int& elem : view){
-            qe.acks.insert(elem);
-        }
-        otherQueue.push_back(qe);
-    }
-    mergeQueues(otherQueue);
-
-    hb_next_id = m->getNew_hb_next_id();
-    hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
-
-    //Check for stage 2 completion
-    if(std::includes(stage2_nn.begin(),stage2_nn.end(),view.begin(),view.end())){
-        set_std_state();
-    }
-
-    */
-
     delete m;
 
 }
@@ -644,7 +515,6 @@ void Node::fault_detected(){
     if(num_nodes == 1){
 
         hb_next_id = id;
-        //hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
 
         set_std_state();
 
@@ -686,45 +556,6 @@ void Node::fault_detected(){
 
     return;
 }
-
-/*
-void Node::handle_fault_stage2_message(FaultMessage *fm){
-
-    if(node_state == NODESTATE_CRASHED){
-        delete fm;
-        return;
-    }
-
-    if(node_state == NODESTATE_NEWNODE){
-        delete fm;
-        return;
-    }
-
-    //Ignore if the fault has already been handled
-    if(view.find(fm->getFault_node())==view.end() && node_state!=NODESTATE_FAULT){
-
-        delete fm;
-        return;
-    }
-
-    stage2.insert(fm->getSender_id());
-
-    //Check for stage 2 completion
-    if(std::includes(stage2.begin(),stage2.end(),view.begin(),view.end())){
-        if(buffered_nnm == nullptr){
-            set_std_state();
-        }else{
-            set_std_state();
-            NewNodeMessage *nnm = buffered_nnm;
-            buffered_nnm = nullptr;
-            handleNewNodeS1Message(nnm);
-        }
-    }
-
-    delete fm;
-
-}
-*/
 
 void Node::handle_fault_message(FaultMessage *fm){
 
@@ -802,31 +633,6 @@ void Node::handle_fault_message(FaultMessage *fm){
             buffered_nnm.erase(buffered_nnm.begin());
             handleNewNodeS1Message(nnm);
         }
-
-        /*
-        stage2.insert(id);
-        for(const int& elem : view){
-            if(elem == id) continue;
-
-            FaultMessage *msg = new FaultMessage();
-            msg->setMex_type(MEXTYPE_FSTAGE2);
-            msg->setSender_id(id);
-
-            send(msg,"out",id_to_channel(elem,id));
-        }
-
-        //Check for stage 2 completion
-        if(std::includes(stage2.begin(),stage2.end(),view.begin(),view.end())){
-            if(buffered_nnm == nullptr){
-                set_std_state();
-            }else{
-                set_std_state();
-                NewNodeMessage *nnm = buffered_nnm;
-                buffered_nnm = nullptr;
-                handleNewNodeS1Message(nnm);
-            }
-        }
-        */
 
     }
 
@@ -984,8 +790,6 @@ void Node::checkLastCommittedVector(Message *m){
         }
     }
 
-
-
     //PRINT THE SIZE OF THE RESTORE QUEUES
     if(PRINT_RESTORE_LENGTH){
         char aaaa[1024];
@@ -995,8 +799,6 @@ void Node::checkLastCommittedVector(Message *m){
         }
         bubble(aaaa);
     }
-
-
 }
 
 void Node::handleStdMessage(Message *m){
