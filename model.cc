@@ -57,7 +57,6 @@ class Node : public cSimpleModule
   private:
     int id;
     int l_clock;
-    //int last_fault_id;
 
     int hb_next_id;
     int hb_channel;
@@ -66,9 +65,8 @@ class Node : public cSimpleModule
     bool still_alive_neighbour;
     int node_state;
 
-    //Stages sets for view change
+    //Received messages for view change
     std::set<int> received_fm;
-
     std::set<int> received_nn;
 
     //Nodes in the group view
@@ -83,7 +81,7 @@ class Node : public cSimpleModule
     std::vector<int> last_committed_id_vector;
     std::vector<int> last_committed_l_clock_vector;
 
-    //Buffered recovery message
+    //Buffered recovery messages
     std::vector<NewNodeMessage*> buffered_nnm;
 
   protected:
@@ -151,8 +149,6 @@ void Node::initialize(){
 
     still_alive_neighbour = true;
     node_state = NODESTATE_STD;
-
-    //buffered_nnm = nullptr;
 }
 
 void Node::setMsgLastCommittedVector(Message *msg){
@@ -1112,7 +1108,6 @@ void Node::finish(){
     for(int i=0; i<(int)committed_msgs.size(); i++){
         sprintf(final_message,"%s (%d,%s) ",final_message,committed_msgs[i]->getL_id(),committed_msgs[i]->getText());
     }
-
     cCanvas *canvas = getParentModule()->getCanvas();
     cTextFigure *textFigure = new cTextFigure("text");
     textFigure->setText(final_message);
