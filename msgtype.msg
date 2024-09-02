@@ -5,11 +5,9 @@
 // 3) Heartbeat
 // 4) HB Ack
 // 5) Failure + queue exchange
-// 6) Failure stage 2
-// 7) New Node Message
-// 8) New Node Message Stage 2
-// 9) New Node Message Stage 2 (recovery info)
-//10) Old Node (a node has been excluded from the view)
+// 6) New Node Message
+// 7) New Node Message (recovery info)
+// 8) Old Node (a node has been excluded from the view)
 // ...
 
 class MQEntry{
@@ -21,6 +19,7 @@ class MQEntry{
 message GenericMessage{
     int mex_type;
     int sender_id;
+    int sender_clock;
 }
 
 message Message extends GenericMessage{

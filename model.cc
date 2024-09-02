@@ -22,12 +22,9 @@
 #define MEXTYPE_HB 3
 #define MEXTYPE_HB_ACK 4
 #define MEXTYPE_FAULT 5
-//#define MEXTYPE_FSTAGE2 6
-#define MEXTYPE_NEWNODE 7
-//#define MEXTYPE_NNSTAGE2 8
-#define MEXTYPE_RECOVERYINFO 9
-#define MEXTYPE_OLDNODE 10
-//...
+#define MEXTYPE_NEWNODE 6
+#define MEXTYPE_RECOVERYINFO 7
+#define MEXTYPE_OLDNODE 8
 
 #define NODESTATE_STD 0
 #define NODESTATE_FAULT 1
@@ -70,9 +67,9 @@ class Node : public cSimpleModule
     int node_state;
 
     //Stages sets for view change
-    std::set<int> stage1;
+    std::set<int> received_fm;
 
-    std::set<int> stage1_nn;
+    std::set<int> received_nn;
 
     //Nodes in the group view
     std::set<int> view;
@@ -118,7 +115,7 @@ class Node : public cSimpleModule
     virtual void finish() override;
 
   public:
-    Node():queue(),view(),committed_msgs(),stage1(),stage2(),stage1_nn(),stage2_nn(),original_view(),buffered_nnm(){ }
+    Node():queue(),view(),committed_msgs(),received_fm(),received_nn(),original_view(),buffered_nnm(){ }
 };
 
 Define_Module(Node);
@@ -242,8 +239,8 @@ void Node::set_std_state(){
         node_state = NODESTATE_STD;
         still_alive_neighbour = true;
         checkTopMessage();
-        stage1.clear();
-        stage1_nn.clear();
+        received_fm.clear();
+        received_nn.clear();
     }
 }
 
@@ -290,18 +287,20 @@ void Node::revive(){
 
     set_newnode_state();
 
-    stage1_nn.insert(id);
+    received_nn.insert(id);
 
     if(view.find(id) == view.end()){
         view.insert(id);
         num_nodes = (int)view.size();
     }
 
+    l_clock++;
     for(const int& elem : view){
         if(elem == id) continue;
         NewNodeMessage *nnm = new NewNodeMessage();
         nnm->setMex_type(MEXTYPE_NEWNODE);
         nnm->setSender_id(id);
+        nnm->setSender_clock(l_clock);
         nnm->setNew_node_id(id);
         nnm->setQueueArraySize(0);
 
@@ -316,6 +315,8 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         delete m;
         return;
     }
+
+    l_clock = MAX(l_clock,m->getSender_clock()) + 1;
 
     //If the fault was not detected yet, trigger the Fault protocol first
     if(view.find(m->getNew_node_id()) != view.end() && node_state == NODESTATE_STD){
@@ -337,8 +338,8 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
 
         set_newnode_state();
 
-        stage1_nn.insert(id);
-        stage1_nn.insert(m->getSender_id());
+        received_nn.insert(id);
+        received_nn.insert(m->getSender_id());
 
         view.insert(m->getNew_node_id());
         num_nodes = (int)view.size();
@@ -366,6 +367,7 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         while(view.find(prev_hop)==view.end() && prev_hop!=id)
             prev_hop = (prev_hop+num_nodes-1)%original_num_nodes;
 
+        l_clock++;
         for(const int& elem : view){
             if(elem == id) continue;
 
@@ -382,6 +384,7 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
                 }
 
                 nnm->setSender_id(id);
+                nnm->setSender_clock(l_clock);
                 nnm->setNew_node_id(m->getNew_node_id());
 
                 nnm->setNew_viewArraySize(view.size());
@@ -418,6 +421,7 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
                 }
 
                 nnm->setSender_id(id);
+                nnm->setSender_clock(l_clock);
                 nnm->setNew_node_id(m->getNew_node_id());
 
                 send(nnm,"out",id_to_channel(elem,id));
@@ -425,7 +429,7 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         }
     }else{
 
-        stage1_nn.insert(m->getSender_id());
+        received_nn.insert(m->getSender_id());
 
         std::vector<QueueEntry> otherQueue = std::vector<QueueEntry>();
         for(int i=0; i<(int)m->getQueueArraySize(); i++){
@@ -446,8 +450,8 @@ void Node::handleNewNodeS1Message(NewNodeMessage *m){
         mergeQueues(otherQueue);
     }
 
-    //Check for stage 1 completion
-    if(std::includes(stage1_nn.begin(),stage1_nn.end(),view.begin(),view.end())){
+    //Check for completion
+    if(std::includes(received_nn.begin(),received_nn.end(),view.begin(),view.end())){
 
         set_std_state();
 
@@ -464,13 +468,15 @@ void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
         return;
     }
 
+    l_clock = MAX(l_clock,m->getSender_clock()) + 1;
+
     view.clear();
     for(int i=0; i<(int)m->getNew_viewArraySize()>0; i++){
         view.insert(m->getNew_view(i));
     }
     num_nodes = (int)view.size();
 
-    stage1_nn.insert(m->getSender_id());
+    received_nn.insert(m->getSender_id());
 
     std::vector<QueueEntry> otherQueue = std::vector<QueueEntry>();
     for(int i=0; i<(int)m->getQueueArraySize(); i++){
@@ -493,7 +499,7 @@ void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
     hb_next_id = m->getNew_hb_next_id();
     hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
 
-    if(std::includes(stage1_nn.begin(),stage1_nn.end(),view.begin(),view.end())){
+    if(std::includes(received_nn.begin(),received_nn.end(),view.begin(),view.end())){
         set_std_state();
     }
 
@@ -534,8 +540,9 @@ void Node::fault_detected(){
     hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
 
     set_fault_state();
-    stage1.insert(id);
+    received_fm.insert(id);
 
+    l_clock++;
     for(const int& elem : view){
         if(elem==id) continue;
 
@@ -549,6 +556,7 @@ void Node::fault_detected(){
         }
         fm->setMex_type(MEXTYPE_FAULT);
         fm->setSender_id(id);
+        fm->setSender_clock(l_clock);
         fm->setFault_node(failed_node);
 
         send(fm,"out",id_to_channel(elem,id));
@@ -563,6 +571,8 @@ void Node::handle_fault_message(FaultMessage *fm){
         delete fm;
         return;
     }
+
+    l_clock = MAX(l_clock,fm->getSender_clock()) + 1;
 
     if(node_state == NODESTATE_NEWNODE){
         delete fm;
@@ -593,7 +603,7 @@ void Node::handle_fault_message(FaultMessage *fm){
     //INSERT UNSTABLE MESSAGES IN QUEUE
     mergeQueues(otherQueue);
 
-    stage1.insert(fm->getSender_id());
+    received_fm.insert(fm->getSender_id());
 
     if(view.find(fm->getFault_node()) != view.end()){
         //First time receiving the fault message
@@ -606,7 +616,9 @@ void Node::handle_fault_message(FaultMessage *fm){
         view.erase(failed_node);
         num_nodes = (int)view.size();
 
-        stage1.insert(id);
+        received_fm.insert(id);
+
+        l_clock++;
         for(const int& elem : view){
             if(elem==id) continue;
 
@@ -617,14 +629,15 @@ void Node::handle_fault_message(FaultMessage *fm){
             }
             fm->setMex_type(MEXTYPE_FAULT);
             fm->setSender_id(id);
+            fm->setSender_clock(l_clock);
             fm->setFault_node(failed_node);
 
             send(fm,"out",id_to_channel(elem,id));
         }
     }
 
-    //Check for stage 1 completion
-    if(std::includes(stage1.begin(),stage1.end(),view.begin(),view.end())){
+    //Check for completion
+    if(std::includes(received_fm.begin(),received_fm.end(),view.begin(),view.end())){
 
         set_std_state();
 
@@ -646,6 +659,8 @@ void Node::handle_oldnode_message(OldNodeMessage *m){
         return;
     }
 
+    l_clock = MAX(l_clock,m->getSender_clock()) + 1;
+
     if(node_state == NODESTATE_FAULT){
         delete m;
         return;
@@ -656,32 +671,10 @@ void Node::handle_oldnode_message(OldNodeMessage *m){
         return;
     }
 
-    set_newnode_state();
-    stage1_nn.insert(id);
+    delete m;
 
-    //RESET VIEW
-    view.clear();
-    for(int i=0; i<original_num_nodes; i++){
-        view.insert(i);
-    }
-    num_nodes = original_num_nodes;
+    revive();
 
-    for(const int& elem : view){
-        if(elem == id) continue;
-
-        std::vector<MQEntry> list = prepareFaultQueue(id);
-
-        NewNodeMessage *nnm = new NewNodeMessage();
-        nnm->setMex_type(MEXTYPE_NEWNODE);
-        nnm->setSender_id(id);
-        nnm->setNew_node_id(id);
-        nnm->setQueueArraySize(list.size());
-        for(int i=0; i<(int)list.size(); i++){
-            nnm->setQueue(i, list[i]);
-        }
-
-        send(nnm,"out",id_to_channel(elem,id));
-    }
     return;
 }
 
@@ -712,11 +705,13 @@ void Node::send_hb(Message *hb_msg){
     int elem = hb_next_id;
 
     // create the HB message
+    l_clock++;
     Message *msg = new HBMessage();
     msg->setL_clock(l_clock);
     msg->setL_id(elem);
     msg->setMex_type(MEXTYPE_HB);
     msg->setSender_id(id);
+    msg->setSender_clock(l_clock);
     msg->setText("HEARTBEAT");
 
     setMsgLastCommittedVector(msg);
@@ -744,10 +739,13 @@ void Node::checkTopMessage(){
     if(node_state == NODESTATE_FAULT || node_state == NODESTATE_NEWNODE) return;
 
     bool is_valid;
+    bool is_invalid;
     if(queue.size()==0) return;
     do{
         is_valid = std::includes(queue[0].acks.begin(),queue[0].acks.end(),view.begin(),view.end());
-        if(is_valid){
+        is_invalid = !is_after_id(queue[0].l_clock,queue[0].l_id,last_committed_l_clock_vector[id],last_committed_id_vector[id]);
+
+        if(is_valid && !is_invalid){
             char bub[100];
             sprintf(bub,"COMMITTED: %d - %d : %s",queue[0].l_id,queue[0].l_clock,queue[0].msg->getText());
             bubble(bub);
@@ -770,7 +768,11 @@ void Node::checkTopMessage(){
             std::pop_heap(queue.begin(),queue.end(),is_after_qe);
             queue.pop_back();
         }
-    }while(is_valid && queue.size()>0);
+        if(is_invalid){
+            std::pop_heap(queue.begin(),queue.end(),is_after_qe);
+            queue.pop_back();
+        }
+    }while((is_valid || is_invalid) && queue.size()>0);
 }
 
 void Node::checkLastCommittedVector(Message *m){
@@ -807,9 +809,14 @@ void Node::handleStdMessage(Message *m){
         return;
     }
 
-    l_clock = MAX(l_clock,m->getL_clock()) + 1;
+    l_clock = MAX(l_clock,m->getSender_clock()) + 1;
 
     checkLastCommittedVector(m);
+
+    if(!is_after_id(m->getL_clock(),m->getL_id(),last_committed_l_clock_vector[id],last_committed_id_vector[id])){
+        delete m;
+        return;
+    }
 
     //Check if an ACK has already arrived
     QueueEntry *qe = nullptr;
@@ -843,6 +850,7 @@ void Node::handleStdMessage(Message *m){
             ack->setL_id(m->getL_id());
             ack->setMex_type(MEXTYPE_ACK);
             ack->setSender_id(id);
+            ack->setSender_clock(l_clock);
             ack->setText("ACK");
 
             setMsgLastCommittedVector(ack);
@@ -864,7 +872,7 @@ void Node::handleAckMessage(Message *m){
         return;
     }
 
-    l_clock = MAX(l_clock,m->getL_clock()) + 1;
+    l_clock = MAX(l_clock,m->getSender_clock()) + 1;
 
     checkLastCommittedVector(m);
 
@@ -892,26 +900,6 @@ void Node::handleAckMessage(Message *m){
             queue.push_back(newqe);
             std::push_heap(queue.begin(),queue.end(),is_after_qe);
         }
-
-        //SEND ACKS TO OTHER NODES
-        /*
-        l_clock++;
-        for (const int& elem : view) {
-            if(elem != id){
-
-                Message *ack = new AckMessage();
-                ack->setL_clock(m->getL_clock());
-                ack->setL_id(m->getL_id());
-                ack->setMex_type(MEXTYPE_ACK);
-                ack->setSender_id(id);
-                ack->setText("ACK");
-
-                setMsgLastCommittedVector(ack);
-
-                send(ack,"out",id_to_channel(elem,id));
-            }
-        }
-        */
     }else{
         //UPDATE ACK LIST
         qe->acks.insert(m->getSender_id());
@@ -930,6 +918,8 @@ void Node::handleHBAckMessage(HBAckMessage *m){
         return;
     }
 
+    l_clock = MAX(l_clock,m->getSender_clock()) + 1;
+
     still_alive_neighbour = true;
 
     checkLastCommittedVector(m);
@@ -944,7 +934,7 @@ void Node::handleHBMessage(Message *m){
         return;
     }
 
-    l_clock = MAX(l_clock,m->getL_clock()) + 1;
+    l_clock = MAX(l_clock,m->getSender_clock()) + 1;
 
     checkLastCommittedVector(m);
 
@@ -953,11 +943,13 @@ void Node::handleHBMessage(Message *m){
         return;
     }
 
+    l_clock++;
     HBAckMessage *ack = new HBAckMessage();
     ack->setL_clock(m->getL_clock());
     ack->setL_id(m->getL_id());
     ack->setMex_type(MEXTYPE_HB_ACK);
     ack->setSender_id(id);
+    ack->setSender_clock(l_clock);
     ack->setText("ACK");
 
     setMsgLastCommittedVector(ack);
@@ -990,19 +982,14 @@ void Node::handleMessage(cMessage *t_msg){
         handleNewNodeS1Message(nnm);
         return;
     }
-    /*
-    if(gm->getMex_type() == MEXTYPE_NNSTAGE2){
-        NewNodeMessage *nnm = (NewNodeMessage*) gm;
-        handleNewNodeS2Message(nnm);
-        return;
-    }
-    */
 
     //Handle if Sender is not in the view
     if(view.find(gm->getSender_id()) == view.end()){
+        l_clock++;
         OldNodeMessage *onm = new OldNodeMessage();
         onm->setMex_type(MEXTYPE_OLDNODE);
         onm->setSender_id(id);
+        onm->setSender_clock(l_clock);
         send(onm,"out",id_to_channel(gm->getSender_id(),id));
         delete gm;
         return;
@@ -1033,13 +1020,6 @@ void Node::handleMessage(cMessage *t_msg){
         handle_fault_message(fm);
         return;
     }
-    /*
-    if(gm->getMex_type() == MEXTYPE_FSTAGE2){
-        FaultMessage *fm = (FaultMessage*) gm;
-        handle_fault_stage2_message(fm);
-        return;
-    }
-    */
     if(gm->getMex_type() == MEXTYPE_RECOVERYINFO){
         NewNodeInfoMessage *nnm = (NewNodeInfoMessage*) gm;
         handleNewNodeInfoMessage(nnm);
@@ -1069,7 +1049,7 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
             }
 
             if(found){
-                queue[j-1].acks.insert(/*otherQueue[i].acks*/original_view.begin(), /*otherQueue[i].acks*/original_view.end()); // is the same message -> merge ack
+                queue[j-1].acks.insert(original_view.begin(), original_view.end());
                 if(queue[j-1].msg == nullptr){
                     queue[j-1].setMsg(otherQueue[i].msg);
                 }else{
@@ -1077,10 +1057,9 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
                         delete otherQueue[i].msg;
                 }
             }else{
-
+                otherQueue[i].acks.insert(original_view.begin(), original_view.end());
                 queue.push_back(otherQueue[i]);
                 std::push_heap(queue.begin(),queue.end(),is_after_qe);
-
             }
         }else{
             if(otherQueue[i].msg!=nullptr)

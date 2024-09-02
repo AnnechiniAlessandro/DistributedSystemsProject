@@ -568,6 +568,7 @@ void GenericMessage::copy(const GenericMessage& other)
 {
     this->mex_type = other.mex_type;
     this->sender_id = other.sender_id;
+    this->sender_clock = other.sender_clock;
 }
 
 void GenericMessage::parsimPack(omnetpp::cCommBuffer *b) const
@@ -575,6 +576,7 @@ void GenericMessage::parsimPack(omnetpp::cCommBuffer *b) const
     ::omnetpp::cMessage::parsimPack(b);
     doParsimPacking(b,this->mex_type);
     doParsimPacking(b,this->sender_id);
+    doParsimPacking(b,this->sender_clock);
 }
 
 void GenericMessage::parsimUnpack(omnetpp::cCommBuffer *b)
@@ -582,6 +584,7 @@ void GenericMessage::parsimUnpack(omnetpp::cCommBuffer *b)
     ::omnetpp::cMessage::parsimUnpack(b);
     doParsimUnpacking(b,this->mex_type);
     doParsimUnpacking(b,this->sender_id);
+    doParsimUnpacking(b,this->sender_clock);
 }
 
 int GenericMessage::getMex_type() const
@@ -604,6 +607,16 @@ void GenericMessage::setSender_id(int sender_id)
     this->sender_id = sender_id;
 }
 
+int GenericMessage::getSender_clock() const
+{
+    return this->sender_clock;
+}
+
+void GenericMessage::setSender_clock(int sender_clock)
+{
+    this->sender_clock = sender_clock;
+}
+
 class GenericMessageDescriptor : public omnetpp::cClassDescriptor
 {
   private:
@@ -611,6 +624,7 @@ class GenericMessageDescriptor : public omnetpp::cClassDescriptor
     enum FieldConstants {
         FIELD_mex_type,
         FIELD_sender_id,
+        FIELD_sender_clock,
     };
   public:
     GenericMessageDescriptor();
@@ -677,7 +691,7 @@ const char *GenericMessageDescriptor::getProperty(const char *propertyName) cons
 int GenericMessageDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
-    return base ? 2+base->getFieldCount() : 2;
+    return base ? 3+base->getFieldCount() : 3;
 }
 
 unsigned int GenericMessageDescriptor::getFieldTypeFlags(int field) const
@@ -691,8 +705,9 @@ unsigned int GenericMessageDescriptor::getFieldTypeFlags(int field) const
     static unsigned int fieldTypeFlags[] = {
         FD_ISEDITABLE,    // FIELD_mex_type
         FD_ISEDITABLE,    // FIELD_sender_id
+        FD_ISEDITABLE,    // FIELD_sender_clock
     };
-    return (field >= 0 && field < 2) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 3) ? fieldTypeFlags[field] : 0;
 }
 
 const char *GenericMessageDescriptor::getFieldName(int field) const
@@ -706,8 +721,9 @@ const char *GenericMessageDescriptor::getFieldName(int field) const
     static const char *fieldNames[] = {
         "mex_type",
         "sender_id",
+        "sender_clock",
     };
-    return (field >= 0 && field < 2) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 3) ? fieldNames[field] : nullptr;
 }
 
 int GenericMessageDescriptor::findField(const char *fieldName) const
@@ -716,6 +732,7 @@ int GenericMessageDescriptor::findField(const char *fieldName) const
     int baseIndex = base ? base->getFieldCount() : 0;
     if (strcmp(fieldName, "mex_type") == 0) return baseIndex + 0;
     if (strcmp(fieldName, "sender_id") == 0) return baseIndex + 1;
+    if (strcmp(fieldName, "sender_clock") == 0) return baseIndex + 2;
     return base ? base->findField(fieldName) : -1;
 }
 
@@ -730,8 +747,9 @@ const char *GenericMessageDescriptor::getFieldTypeString(int field) const
     static const char *fieldTypeStrings[] = {
         "int",    // FIELD_mex_type
         "int",    // FIELD_sender_id
+        "int",    // FIELD_sender_clock
     };
-    return (field >= 0 && field < 2) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 3) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **GenericMessageDescriptor::getFieldPropertyNames(int field) const
@@ -816,6 +834,7 @@ std::string GenericMessageDescriptor::getFieldValueAsString(omnetpp::any_ptr obj
     switch (field) {
         case FIELD_mex_type: return long2string(pp->getMex_type());
         case FIELD_sender_id: return long2string(pp->getSender_id());
+        case FIELD_sender_clock: return long2string(pp->getSender_clock());
         default: return "";
     }
 }
@@ -834,6 +853,7 @@ void GenericMessageDescriptor::setFieldValueAsString(omnetpp::any_ptr object, in
     switch (field) {
         case FIELD_mex_type: pp->setMex_type(string2long(value)); break;
         case FIELD_sender_id: pp->setSender_id(string2long(value)); break;
+        case FIELD_sender_clock: pp->setSender_clock(string2long(value)); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'GenericMessage'", field);
     }
 }
@@ -850,6 +870,7 @@ omnetpp::cValue GenericMessageDescriptor::getFieldValue(omnetpp::any_ptr object,
     switch (field) {
         case FIELD_mex_type: return pp->getMex_type();
         case FIELD_sender_id: return pp->getSender_id();
+        case FIELD_sender_clock: return pp->getSender_clock();
         default: throw omnetpp::cRuntimeError("Cannot return field %d of class 'GenericMessage' as cValue -- field index out of range?", field);
     }
 }
@@ -868,6 +889,7 @@ void GenericMessageDescriptor::setFieldValue(omnetpp::any_ptr object, int field,
     switch (field) {
         case FIELD_mex_type: pp->setMex_type(omnetpp::checked_int_cast<int>(value.intValue())); break;
         case FIELD_sender_id: pp->setSender_id(omnetpp::checked_int_cast<int>(value.intValue())); break;
+        case FIELD_sender_clock: pp->setSender_clock(omnetpp::checked_int_cast<int>(value.intValue())); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'GenericMessage'", field);
     }
 }

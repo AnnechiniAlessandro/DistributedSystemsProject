@@ -28,7 +28,7 @@ class NewNodeStage2Message;
 class NewNodeInfoMessage;
 class OldNodeMessage;
 /**
- * Class generated from <tt>msgtype.msg:15</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:13</tt> by opp_msgtool.
  * <pre>
  * class MQEntry
  * {
@@ -70,12 +70,13 @@ class MQEntry
 };
 
 /**
- * Class generated from <tt>msgtype.msg:21</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:19</tt> by opp_msgtool.
  * <pre>
  * message GenericMessage
  * {
  *     int mex_type;
  *     int sender_id;
+ *     int sender_clock;
  * }
  * </pre>
  */
@@ -84,6 +85,7 @@ class GenericMessage : public ::omnetpp::cMessage
   protected:
     int mex_type = 0;
     int sender_id = 0;
+    int sender_clock = 0;
 
   private:
     void copy(const GenericMessage& other);
@@ -105,13 +107,16 @@ class GenericMessage : public ::omnetpp::cMessage
 
     virtual int getSender_id() const;
     virtual void setSender_id(int sender_id);
+
+    virtual int getSender_clock() const;
+    virtual void setSender_clock(int sender_clock);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const GenericMessage& obj) {obj.parsimPack(b);}
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, GenericMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:26</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:25</tt> by opp_msgtool.
  * <pre>
  * message Message extends GenericMessage
  * {
@@ -181,7 +186,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const Message& obj) {obj.pa
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, Message& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:34</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:33</tt> by opp_msgtool.
  * <pre>
  * message FaultMessage extends GenericMessage
  * {
@@ -230,7 +235,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const FaultMessage& obj) {o
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, FaultMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:39</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:38</tt> by opp_msgtool.
  * <pre>
  * message AckMessage extends Message
  * {
@@ -261,7 +266,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const AckMessage& obj) {obj
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, AckMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:41</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:40</tt> by opp_msgtool.
  * <pre>
  * message HBMessage extends Message
  * {
@@ -292,7 +297,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const HBMessage& obj) {obj.
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, HBMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:43</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:42</tt> by opp_msgtool.
  * <pre>
  * message HBAckMessage extends Message
  * {
@@ -323,7 +328,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const HBAckMessage& obj) {o
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, HBAckMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:45</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:44</tt> by opp_msgtool.
  * <pre>
  * message NewNodeMessage extends GenericMessage
  * {
@@ -372,7 +377,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeMessage& obj) 
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:50</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:49</tt> by opp_msgtool.
  * <pre>
  * message NewNodeStage2Message extends NewNodeMessage
  * {
@@ -403,7 +408,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeStage2Message&
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeStage2Message& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:52</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:51</tt> by opp_msgtool.
  * <pre>
  * message NewNodeInfoMessage extends NewNodeMessage
  * {
@@ -464,7 +469,7 @@ inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeInfoMessage& o
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeInfoMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:58</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:57</tt> by opp_msgtool.
  * <pre>
  * message OldNodeMessage extends GenericMessage
  * {
