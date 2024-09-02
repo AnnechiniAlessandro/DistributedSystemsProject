@@ -1082,7 +1082,7 @@ void Node::handleParameterChange(const char *parname) {
 
     if (strcmp(parname, "new_mex") == 0) {
         if(par("new_mex").intValue() > 0){
-            if(node_state == NODESTATE_STD || node_state == NODESTATE_FAULT || node_state == NODESTATE_NEWNODE){
+            if(node_state == NODESTATE_STD){
                 l_clock++;
                 char message_text[1024];
                 sprintf(message_text,"Message{%d,%d}",l_clock,id);
@@ -1094,6 +1094,9 @@ void Node::handleParameterChange(const char *parname) {
                 par("new_mex").setIntValue(0);
             }else if(node_state == NODESTATE_NEWNODE){
                 bubble("Cannot send messages during node addition...");
+                par("new_mex").setIntValue(0);
+            }else if(node_state == NODESTATE_FAULT){
+                bubble("Cannot send messages during fault recovery...");
                 par("new_mex").setIntValue(0);
             }
         }else if(par("new_mex").intValue() < 0){
