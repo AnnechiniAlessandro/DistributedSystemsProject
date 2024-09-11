@@ -33,6 +33,9 @@
 
 using namespace omnetpp;
 
+/*
+ * Utility functions
+ * */
 bool is_after_id(int lc1, int id1, int lc2, int id2){
     return lc1 > lc2 || (lc1==lc2 && id1 > id2);
 }
@@ -55,31 +58,46 @@ omnetpp::SimTime next_hb_time(){
 class Node : public cSimpleModule
 {
   private:
+    //Node ID and logical clock
     int id;
     int l_clock;
 
+    //ID and channel of the next HB hop in the ring
     int hb_next_id;
     int hb_channel;
 
+    //Queue of messages not yet committed
     std::vector<QueueEntry> queue;
+
+    //Variable used to check if the neighbor is alive
     bool still_alive_neighbour;
+
+    //State of the node (STD,FAULT,NEWNODE,CRASHED)
     int node_state;
 
-    //Received messages for view change
+    //Received messages for view change (fault and new node)
     std::set<int> received_fm;
     std::set<int> received_nn;
 
     //Nodes in the group view
     std::set<int> view;
-    std::set<int> original_view;
     int num_nodes;
+
+    //Original group view
+    std::set<int> original_view;
     int original_num_nodes;
 
+    //List of committed messages
+    //NOTE: the full list of committed messages is NOT required by the application
+    //It is used for simulation purposes
     std::vector<Message*> committed_msgs;
 
-    std::vector<std::vector<Message*>> restoreQueues;
+    //Last committed (ID,logical clock) for all nodes
     std::vector<int> last_committed_id_vector;
     std::vector<int> last_committed_l_clock_vector;
+
+    //Restore queues
+    std::vector<std::vector<Message*>> restoreQueues;
 
     //Buffered recovery messages
     std::vector<NewNodeMessage*> buffered_nnm;
@@ -118,6 +136,9 @@ class Node : public cSimpleModule
 
 Define_Module(Node);
 
+/*
+ * Node initialization
+ * */
 void Node::initialize(){
     id = par("id");
     l_clock = 0;
@@ -142,7 +163,7 @@ void Node::initialize(){
     hb_next_id = (id+1)%num_nodes;
     hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
 
-    //Schedule the event of sending the first HB
+    //Schedule the HB event
     Message *hb_msg = new Message();
     hb_msg->setMex_type(MEXTYPE_SELFHB);
     scheduleAt(next_hb_time(),hb_msg);
@@ -151,6 +172,10 @@ void Node::initialize(){
     node_state = NODESTATE_STD;
 }
 
+/*
+ * Insert in the message a copy of the vector containing informations
+ * about the last message committed by all nodes
+ */
 void Node::setMsgLastCommittedVector(Message *msg){
     msg->setLast_cidArraySize(last_committed_id_vector.size());
     msg->setLast_cclockArraySize(last_committed_l_clock_vector.size());
@@ -160,6 +185,11 @@ void Node::setMsgLastCommittedVector(Message *msg){
     }
 }
 
+/*
+ * Broadcast a message to all nodes in the view
+ * and insert it in the queue (as it is implicitly
+ * acked by the node itself)
+ */
 void Node::send_standard_message(const char *text){
 
     if(node_state == NODESTATE_CRASHED){
@@ -170,6 +200,7 @@ void Node::send_standard_message(const char *text){
         return;
     }
 
+    //Broadcast message
     for(const int& elem : view){
         if(elem == id) continue;
 
@@ -201,11 +232,17 @@ void Node::send_standard_message(const char *text){
     checkTopMessage();
 }
 
+/*
+ * Prepare the message queue to be sent during fault recovery,
+ * containing all unstable messages
+ */
 std::vector<MQEntry> Node::prepareFaultQueue(int failed_node){
     std::vector<MQEntry> result = std::vector<MQEntry>();
     for(int i = 0; i<(int)queue.size(); i++){
         MQEntry mqe = MQEntry();
         if(queue[i].msg != nullptr){
+            //All unstable messages are exchanged by all alive nodes,
+            //Therefore they are implicitly acked
             queue[i].acks.insert(original_view.begin(), original_view.end());
             mqe.setL_id(queue[i].l_id);
             mqe.setL_clock(queue[i].l_clock);
@@ -216,11 +253,17 @@ std::vector<MQEntry> Node::prepareFaultQueue(int failed_node){
     return result;
 }
 
+/*
+ * Prepare the message queue to be sent during node insertion,
+ * containing all unstable messages
+ */
 std::vector<MQEntry> Node::prepareNewNodeQueue(){
     std::vector<MQEntry> result = std::vector<MQEntry>();
     for(int i = 0; i<(int)queue.size(); i++){
         MQEntry mqe = MQEntry();
         if(queue[i].msg != nullptr){
+            //All unstable messages are exchanged by all alive nodes,
+            //Therefore they are implicitly acked
             queue[i].acks.insert(original_view.begin(), original_view.end());
             mqe.setL_id(queue[i].l_id);
             mqe.setL_clock(queue[i].l_clock);
@@ -232,18 +275,26 @@ std::vector<MQEntry> Node::prepareNewNodeQueue(){
     return result;
 }
 
+/*
+ * Transition to standard state
+ */
 void Node::set_std_state(){
     if(node_state!=NODESTATE_STD){
         bubble("ENTERED STANDARD STATE!");
         getDisplayString().setTagArg("i", 1, "white");
         node_state = NODESTATE_STD;
         still_alive_neighbour = true;
+
+        //Commit messages
         checkTopMessage();
         received_fm.clear();
         received_nn.clear();
     }
 }
 
+/*
+ * Transition to fault state
+ */
 void Node::set_fault_state(){
     if(node_state != NODESTATE_FAULT){
         bubble("ENTERED FAULT STATE!");
@@ -252,6 +303,9 @@ void Node::set_fault_state(){
     }
 }
 
+/*
+ * Transition to new node state
+ */
 void Node::set_newnode_state(){
     if(node_state != NODESTATE_NEWNODE){
         bubble("ENTERED NEW NODE STATE!");
@@ -260,6 +314,12 @@ void Node::set_newnode_state(){
     }
 }
 
+/*
+ * This function is called whenever a crashed node returns online
+ * The node flushes ALL its informations (queue, restore queues, view)
+ * apart from the id of its last committed message. Then it sends
+ * a new node request to all other nodes
+ */
 void Node::revive(){
     //FLUSH THE QUEUE
     for(int i=0; i<(int)queue.size(); i++){
@@ -291,6 +351,7 @@ void Node::revive(){
 
     l_clock++;
 
+    //Broadcast to ALL nodes since view may have changed
     for(const int& elem : view){
         if(elem == id) continue;
         NewNodeMessage *nnm = new NewNodeMessage();
@@ -305,6 +366,9 @@ void Node::revive(){
     return;
 }
 
+/*
+ * Handle a New Node message
+ */
 void Node::handleNewNodeMessage(NewNodeMessage *m){
 
     if(node_state == NODESTATE_CRASHED){
@@ -330,6 +394,7 @@ void Node::handleNewNodeMessage(NewNodeMessage *m){
         return;
     }
 
+    //If the node is not in the New Node state, transition and broadcast new node message
     if(view.find(m->getNew_node_id()) == view.end() || node_state != NODESTATE_NEWNODE){
 
         set_newnode_state();
@@ -356,6 +421,7 @@ void Node::handleNewNodeMessage(NewNodeMessage *m){
             }
             otherQueue.push_back(qe);
         }
+        //Merge the incoming unstable messages
         mergeQueues(otherQueue);
 
         //Check if the node revived is the next HB hop
@@ -371,6 +437,9 @@ void Node::handleNewNodeMessage(NewNodeMessage *m){
 
             if(prev_hop == id && elem == m->getNew_node_id()){
 
+                //If the node revived is the next HB hop
+                //a NewNodeInfoMessage is sent with additional informations
+                //such as its next HB hop, its restore queue and the new view
                 NewNodeInfoMessage *nnm = new NewNodeInfoMessage();
                 nnm->setMex_type(MEXTYPE_RECOVERYINFO);
 
@@ -414,6 +483,7 @@ void Node::handleNewNodeMessage(NewNodeMessage *m){
 
             }else{
 
+                //Broadcast unstable messages to all nodes
                 NewNodeMessage *nnm = new NewNodeMessage();
                 nnm->setMex_type(MEXTYPE_NEWNODE);
 
@@ -449,6 +519,7 @@ void Node::handleNewNodeMessage(NewNodeMessage *m){
             }
             otherQueue.push_back(qe);
         }
+        //Merge the incoming unstable messages
         mergeQueues(otherQueue);
     }
 
@@ -463,6 +534,12 @@ void Node::handleNewNodeMessage(NewNodeMessage *m){
 
 }
 
+/*
+ * Handle NewNodeInfoMessage
+ * this message is sent to the node entering the network by its
+ * previous hop in the HB ring. It contains additional information
+ * for recovery
+ */
 void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
 
     if(node_state == NODESTATE_CRASHED){
@@ -472,6 +549,7 @@ void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
 
     l_clock = MAX(l_clock,m->getSender_clock()) + 1;
 
+    //Update view
     view.clear();
     for(int i=0; i<(int)m->getNew_viewArraySize()>0; i++){
         view.insert(m->getNew_view(i));
@@ -496,6 +574,7 @@ void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
         }
         otherQueue.push_back(qe);
     }
+    //Merge unstable messages
     mergeQueues(otherQueue);
 
     std::vector<QueueEntry> otherQueue2 = std::vector<QueueEntry>();
@@ -514,11 +593,14 @@ void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
         }
         otherQueue2.push_back(qe);
     }
+    //Merge restore queue
     mergeQueues(otherQueue2);
 
+    //Update next HB hop
     hb_next_id = m->getNew_hb_next_id();
     hb_channel = hb_next_id > id ? hb_next_id-1 : hb_next_id;
 
+    //Check for completion
     if(std::includes(received_nn.begin(),received_nn.end(),view.begin(),view.end())){
         set_std_state();
     }
@@ -527,6 +609,10 @@ void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
 
 }
 
+/*
+ * This function is called by a node whose successor in the
+ * HB ring has failed. It begins the fault recovery process
+ */
 void Node::fault_detected(){
 
     if(node_state == NODESTATE_CRASHED){
@@ -538,6 +624,7 @@ void Node::fault_detected(){
     view.erase(failed_node);
     num_nodes = (int)view.size();
 
+    //Check if the node is the only one remaining
     if(num_nodes == 1){
 
         hb_next_id = id;
@@ -554,6 +641,7 @@ void Node::fault_detected(){
 
     }
 
+    //Update next HB hop
     hb_next_id = (hb_next_id+1)%original_num_nodes;
     while(view.find(hb_next_id) == view.end()){
         hb_next_id = (hb_next_id+1)%original_num_nodes;
@@ -564,6 +652,7 @@ void Node::fault_detected(){
     received_fm.insert(id);
 
     l_clock++;
+    //Broadcast unstable messages
     for(const int& elem : view){
         if(elem==id) continue;
 
@@ -586,6 +675,9 @@ void Node::fault_detected(){
     return;
 }
 
+/*
+ * Handle fault message
+ */
 void Node::handle_fault_message(FaultMessage *fm){
 
     if(node_state == NODESTATE_CRASHED){
@@ -600,7 +692,6 @@ void Node::handle_fault_message(FaultMessage *fm){
         return;
     }
 
-    //Ignore if the fault has already been handled
     if(view.find(fm->getFault_node())==view.end() && node_state!=NODESTATE_FAULT){
         delete fm;
         return;
@@ -621,7 +712,7 @@ void Node::handle_fault_message(FaultMessage *fm){
         }
         otherQueue.push_back(qe);
     }
-    //INSERT UNSTABLE MESSAGES IN QUEUE
+    //Insert unstable messages in queue
     mergeQueues(otherQueue);
 
     received_fm.insert(fm->getSender_id());
@@ -662,6 +753,7 @@ void Node::handle_fault_message(FaultMessage *fm){
 
         set_std_state();
 
+        //Handle buffered new node messages
         while(buffered_nnm.size() > 0){
             NewNodeMessage *nnm = buffered_nnm[0];
             buffered_nnm.erase(buffered_nnm.begin());
@@ -674,6 +766,11 @@ void Node::handle_fault_message(FaultMessage *fm){
 
 }
 
+/*
+ * Handle Old Node Message
+ * This message is received by a node if it is not in the current
+ * group view. It then triggers a new node process
+ */
 void Node::handle_oldnode_message(OldNodeMessage *m){
     if(node_state == NODESTATE_CRASHED){
         delete m;
@@ -694,13 +791,20 @@ void Node::handle_oldnode_message(OldNodeMessage *m){
 
     delete m;
 
+    //Act as if the node had previously crashed
     revive();
 
     return;
 }
 
+/*
+ * This function is called periodically to send the
+ * HB message to the next node in the ring
+ */
 void Node::send_hb(Message *hb_msg){
 
+    //This timer is scheduled no matter what
+    //for simulation purposes
     scheduleAt(next_hb_time(),hb_msg);
 
     if(num_nodes == 1){
@@ -716,7 +820,7 @@ void Node::send_hb(Message *hb_msg){
         return;
     }
 
-    // Any time we send and HB we check if the previous one has been acked
+    // Any time we send and HB, we check if the previous one has been acked
     if(!still_alive_neighbour){
         fault_detected();
         return;
@@ -743,6 +847,9 @@ void Node::send_hb(Message *hb_msg){
     still_alive_neighbour = false;
 }
 
+/*
+ * Commit a message
+ */
 void Node::commitMessage(Message *m){
     if(is_after_id(m->getL_clock(),m->getL_id(),last_committed_l_clock_vector[id],last_committed_id_vector[id])){
         last_committed_id_vector[id] = m->getL_id();
@@ -751,6 +858,13 @@ void Node::commitMessage(Message *m){
     }
 }
 
+/*
+ * This function checks if the message on top of the queue can be committed
+ * If so, it keeps committing messages until either the queue is empty
+ * or the top message has not been acked by all nodes yet.
+ * Committed messages are inserted in the restore queues, in order to be
+ * recovered by currently crashed nodes.
+ */
 void Node::checkTopMessage(){
 
     if(node_state == NODESTATE_CRASHED){
@@ -773,6 +887,7 @@ void Node::checkTopMessage(){
 
             commitMessage(queue[0].msg);
 
+            //Insert message in all restore queues
             for(int i=0; i<(int)restoreQueues.size(); i++){
                 if(i == id) continue;
 
@@ -796,6 +911,10 @@ void Node::checkTopMessage(){
     }while((is_valid || is_invalid) && queue.size()>0);
 }
 
+/*
+ * Whenever a new message is receiver, the last-committed-vector
+ * is updated in order to discard messages committed by the other nodes
+ */
 void Node::checkLastCommittedVector(Message *m){
     for(int i=0; i<(int)last_committed_id_vector.size(); i++){
         if(i == id) continue;
@@ -813,7 +932,7 @@ void Node::checkLastCommittedVector(Message *m){
         }
     }
 
-    //PRINT THE SIZE OF THE RESTORE QUEUES
+    //Optional: print the size of restore queues
     if(PRINT_RESTORE_LENGTH){
         char aaaa[1024];
         sprintf(aaaa,"RESTORE items: ");
@@ -824,6 +943,10 @@ void Node::checkLastCommittedVector(Message *m){
     }
 }
 
+/*
+ * Handle standard messages
+ * Broadcast ACK to other nodes
+ */
 void Node::handleStdMessage(Message *m){
 
     if(node_state == NODESTATE_CRASHED){
@@ -848,7 +971,7 @@ void Node::handleStdMessage(Message *m){
     }
 
     if(qe == nullptr){
-        //INSERT MESSAGE IN QUEUE
+        //Insert message in queue
         QueueEntry newqe = QueueEntry();
         newqe.setMsg(m);
         //Add own ack
@@ -857,11 +980,11 @@ void Node::handleStdMessage(Message *m){
         std::push_heap(queue.begin(),queue.end(),is_after_qe);
 
     }else{
-        //UPDATE MESSAGE IN QUEUE
+        //Update message in queue
         qe->setMsg(m);
     }
 
-    //SEND ACKS TO OTHER NODES
+    //Send ACKS to other nodes
     l_clock++;
     for (const int& elem : view) {
         if(elem != id){
@@ -880,12 +1003,18 @@ void Node::handleStdMessage(Message *m){
         }
     }
 
+    //Check if the message can be committed
     if(node_state == NODESTATE_STD)
         checkTopMessage();
 
     return;
 }
 
+/*
+ * Handle the ACK to a standard message
+ * If an ACK arrives before the actual message
+ * an "empty" entry is inserted in the queue
+ */
 void Node::handleAckMessage(Message *m){
 
     if(node_state == NODESTATE_CRASHED){
@@ -906,9 +1035,9 @@ void Node::handleAckMessage(Message *m){
     }
 
     if(qe == nullptr){
-
+        //The actual message has not arrived yet
         if(is_after_id(m->getL_clock(),m->getL_id(),last_committed_l_clock_vector[id],last_committed_id_vector[id])){
-            //INSERT (empty) MESSAGE IN QUEUE
+            //Insert (empty) message in queue
             QueueEntry newqe = QueueEntry();
             newqe.setMsg(nullptr);
             newqe.l_clock = m->getL_clock();
@@ -922,10 +1051,12 @@ void Node::handleAckMessage(Message *m){
             std::push_heap(queue.begin(),queue.end(),is_after_qe);
         }
     }else{
-        //UPDATE ACK LIST
+        //The actual message has arrived
+        //Update ACK list
         qe->acks.insert(m->getSender_id());
     }
 
+    //Check if the message can be committed
     if(node_state == NODESTATE_STD)
         checkTopMessage();
 
@@ -933,6 +1064,10 @@ void Node::handleAckMessage(Message *m){
     return;
 }
 
+/*
+ * Handle the ACK to an HB message
+ * Set the neighbor as alive
+ */
 void Node::handleHBAckMessage(HBAckMessage *m){
 
     if(node_state == NODESTATE_CRASHED){
@@ -949,6 +1084,10 @@ void Node::handleHBAckMessage(HBAckMessage *m){
     return;
 }
 
+/*
+ * Handle a HB message
+ * Send and ACK to signal that the node is alive
+ */
 void Node::handleHBMessage(Message *m){
 
     if(node_state == NODESTATE_CRASHED){
@@ -975,7 +1114,7 @@ void Node::handleHBMessage(Message *m){
 
     setMsgLastCommittedVector(ack);
 
-    //respond to the HB
+    //Respond to the HB
     send(ack,"out",id_to_channel(m->getSender_id(),id));
 
     delete m;
@@ -983,6 +1122,9 @@ void Node::handleHBMessage(Message *m){
 
 }
 
+/*
+ * Handle incoming messages
+ */
 void Node::handleMessage(cMessage *t_msg){
 
     GenericMessage *gm = (GenericMessage*) t_msg;
@@ -1004,7 +1146,7 @@ void Node::handleMessage(cMessage *t_msg){
         return;
     }
 
-    //Handle if Sender is not in the view
+    //Handle messages where sender is not in the view
     if(view.find(gm->getSender_id()) == view.end()){
         l_clock++;
         OldNodeMessage *onm = new OldNodeMessage();
@@ -1054,6 +1196,9 @@ void Node::handleMessage(cMessage *t_msg){
 
 }
 
+/*
+ * This function inserts the unstable messages sent by other nodes in the queue
+ */
 void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
     int i = 0;
     int j = 0;
@@ -1091,6 +1236,9 @@ void Node::mergeQueues(std::vector<QueueEntry> otherQueue){
     return;
 }
 
+/*
+ * Handle parameters changed dring the simulations
+ */
 void Node::handleParameterChange(const char *parname) {
     if (strcmp(parname, "alive") == 0) {
         if(par("alive").boolValue()){
@@ -1106,6 +1254,7 @@ void Node::handleParameterChange(const char *parname) {
     }
 
     if (strcmp(parname, "new_mex") == 0) {
+        //Broadcast message
         if(par("new_mex").intValue() > 0){
             if(node_state == NODESTATE_STD){
                 l_clock++;
@@ -1130,6 +1279,9 @@ void Node::handleParameterChange(const char *parname) {
     }
 }
 
+/*
+ * When the simulation terminates, print the messages committed by each node
+ */
 void Node::finish(){
     char final_message[1024];
     sprintf(final_message,"COMMITTED MESSAGES by %d: ",id);
