@@ -52,6 +52,8 @@ message NewNodeInfoMessage extends NewNodeMessage{
 	int new_hb_next_id;
 	MQEntry restore[];
 	int new_view[];
+	MQEntry restoreQueues[];
+	int restoreQueuesLengths[];
 }
 
 message OldNodeMessage extends GenericMessage{}

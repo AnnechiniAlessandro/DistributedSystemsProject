@@ -439,7 +439,8 @@ void Node::handleNewNodeMessage(NewNodeMessage *m){
 
                 //If the node revived is the next HB hop
                 //a NewNodeInfoMessage is sent with additional informations
-                //such as its next HB hop, its restore queue and the new view
+                //such as its next HB hop, its restore queue, the new view
+                //and a copy of all other restore queues
                 NewNodeInfoMessage *nnm = new NewNodeInfoMessage();
                 nnm->setMex_type(MEXTYPE_RECOVERYINFO);
 
@@ -478,6 +479,35 @@ void Node::handleNewNodeMessage(NewNodeMessage *m){
                     nnm->setQueue(i, list[i]);
                 }
 
+                int actual_size = 0;
+                for(int i=0; i<original_num_nodes; i++){
+                    if(i == m->getNew_node_id()) continue;
+                    actual_size += (int)restoreQueues[i].size();
+                }
+
+                int curr_pos = 0;
+                nnm->setRestoreQueuesArraySize(actual_size);
+                nnm->setRestoreQueuesLengthsArraySize(original_num_nodes);
+                for(int e=0; e<original_num_nodes; e++){
+
+                    if(e == m->getNew_node_id()){
+                        nnm->setRestoreQueuesLengths(e,0);
+                    }else{
+                        nnm->setRestoreQueuesLengths(e,(int)restoreQueues[e].size());
+                        for(int k=0; k<(int)restoreQueues[e].size(); k++){
+
+                            MQEntry mqe = MQEntry();
+                            mqe.setL_id(restoreQueues[e][k]->getL_id());
+                            mqe.setL_clock(restoreQueues[e][k]->getL_clock());
+                            mqe.setText(restoreQueues[e][k]->getText());
+
+                            nnm->setRestoreQueues(curr_pos,mqe);
+                            curr_pos++;
+
+                        }
+                    }
+
+                }
 
                 send(nnm,"out",id_to_channel(elem,id));
 
@@ -595,6 +625,24 @@ void Node::handleNewNodeInfoMessage(NewNodeInfoMessage *m){
     }
     //Merge restore queue
     mergeQueues(otherQueue2);
+
+    int curr_pos = 0;
+    for(int e=0; e<original_num_nodes; e++){
+        for(int k=0; k< m->getRestoreQueuesLengths(e); k++){
+
+            Message *rm = new Message();
+            rm->setL_clock(m->getRestoreQueues(curr_pos).getL_clock());
+            rm->setL_id(m->getRestoreQueues(curr_pos).getL_id());
+            rm->setMex_type(MEXTYPE_STD);
+            rm->setSender_id(m->getSender_id());
+            rm->setText(m->getRestoreQueues(curr_pos).getText());
+
+            restoreQueues[e].push_back(rm);
+
+            curr_pos++;
+
+        }
+    }
 
     //Update next HB hop
     hb_next_id = m->getNew_hb_next_id();
@@ -891,14 +939,23 @@ void Node::checkTopMessage(){
             for(int i=0; i<(int)restoreQueues.size(); i++){
                 if(i == id) continue;
 
-                Message *rm = new Message();
-                rm->setL_clock(queue[0].msg->getL_clock());
-                rm->setL_id(queue[0].msg->getL_id());
-                rm->setMex_type(MEXTYPE_STD);
-                rm->setSender_id(queue[0].msg->getSender_id());
-                rm->setText(queue[0].msg->getText());
+                bool found = false;
+                for(int j=0; j<(int)restoreQueues[i].size(); j++){
+                    if(!is_after_id(queue[0].msg->getL_clock(),queue[0].msg->getL_id(),restoreQueues[i][j]->getL_clock(),restoreQueues[i][j]->getL_id())){
+                        found = true;
+                    }
+                }
 
-                restoreQueues[i].push_back(rm);
+                if(!found){
+                    Message *rm = new Message();
+                    rm->setL_clock(queue[0].msg->getL_clock());
+                    rm->setL_id(queue[0].msg->getL_id());
+                    rm->setMex_type(MEXTYPE_STD);
+                    rm->setSender_id(queue[0].msg->getSender_id());
+                    rm->setText(queue[0].msg->getText());
+
+                    restoreQueues[i].push_back(rm);
+                }
             }
 
             std::pop_heap(queue.begin(),queue.end(),is_after_qe);

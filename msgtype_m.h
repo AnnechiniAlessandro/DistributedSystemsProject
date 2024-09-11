@@ -415,6 +415,8 @@ inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeStage2Message& obj
  *     int new_hb_next_id;
  *     MQEntry restore[];
  *     int new_view[];
+ *     MQEntry restoreQueues[];
+ *     int restoreQueuesLengths[];
  * }
  * </pre>
  */
@@ -426,6 +428,10 @@ class NewNodeInfoMessage : public ::NewNodeMessage
     size_t restore_arraysize = 0;
     int *new_view = nullptr;
     size_t new_view_arraysize = 0;
+    MQEntry *restoreQueues = nullptr;
+    size_t restoreQueues_arraysize = 0;
+    int *restoreQueuesLengths = nullptr;
+    size_t restoreQueuesLengths_arraysize = 0;
 
   private:
     void copy(const NewNodeInfoMessage& other);
@@ -463,13 +469,32 @@ class NewNodeInfoMessage : public ::NewNodeMessage
     [[deprecated]] void insertNew_view(int new_view) {appendNew_view(new_view);}
     virtual void appendNew_view(int new_view);
     virtual void eraseNew_view(size_t k);
+
+    virtual void setRestoreQueuesArraySize(size_t size);
+    virtual size_t getRestoreQueuesArraySize() const;
+    virtual const MQEntry& getRestoreQueues(size_t k) const;
+    virtual MQEntry& getRestoreQueuesForUpdate(size_t k) { return const_cast<MQEntry&>(const_cast<NewNodeInfoMessage*>(this)->getRestoreQueues(k));}
+    virtual void setRestoreQueues(size_t k, const MQEntry& restoreQueues);
+    virtual void insertRestoreQueues(size_t k, const MQEntry& restoreQueues);
+    [[deprecated]] void insertRestoreQueues(const MQEntry& restoreQueues) {appendRestoreQueues(restoreQueues);}
+    virtual void appendRestoreQueues(const MQEntry& restoreQueues);
+    virtual void eraseRestoreQueues(size_t k);
+
+    virtual void setRestoreQueuesLengthsArraySize(size_t size);
+    virtual size_t getRestoreQueuesLengthsArraySize() const;
+    virtual int getRestoreQueuesLengths(size_t k) const;
+    virtual void setRestoreQueuesLengths(size_t k, int restoreQueuesLengths);
+    virtual void insertRestoreQueuesLengths(size_t k, int restoreQueuesLengths);
+    [[deprecated]] void insertRestoreQueuesLengths(int restoreQueuesLengths) {appendRestoreQueuesLengths(restoreQueuesLengths);}
+    virtual void appendRestoreQueuesLengths(int restoreQueuesLengths);
+    virtual void eraseRestoreQueuesLengths(size_t k);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const NewNodeInfoMessage& obj) {obj.parsimPack(b);}
 inline void doParsimUnpacking(omnetpp::cCommBuffer *b, NewNodeInfoMessage& obj) {obj.parsimUnpack(b);}
 
 /**
- * Class generated from <tt>msgtype.msg:57</tt> by opp_msgtool.
+ * Class generated from <tt>msgtype.msg:59</tt> by opp_msgtool.
  * <pre>
  * message OldNodeMessage extends GenericMessage
  * {
